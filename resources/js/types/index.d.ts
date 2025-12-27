@@ -1,5 +1,7 @@
 export interface Auth {
-    user: User;
+    user: User | null;
+    isAuthenticated: boolean;
+    recordingCount: number;
 }
 
 export type AppPageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & {
@@ -8,19 +10,19 @@ export type AppPageProps<T extends Record<string, unknown> = Record<string, unkn
     flash?: {
         success?: string;
         error?: string;
+        auth_success?: boolean;
     };
 };
 
 export interface User {
     id: number;
-    name: string;
-    email: string;
-    avatar?: string;
-    email_verified_at: string | null;
-    created_at: string;
-    updated_at: string;
+    name: string | null;
+    email: string | null;
+    avatar?: string | null;
+    email_verified_at?: string | null;
+    created_at?: string;
+    updated_at?: string;
 }
-
 // NotePin Types
 export interface ActionItem {
     id: number;

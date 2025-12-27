@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { ref, computed, onUnmounted } from 'vue';
+import { ref, computed, onUnmounted, onMounted } from 'vue';
 import { useTrans } from '@/composables/useTrans';
+import { useAuth } from '@/composables/useAuth';
 import AppLayout from '@/layouts/AppLayout.vue';
+import AuthModal from '@/components/AuthModal.vue';
+import { EventTracker } from '@/services/EventTracker';
 
 const { t, locale } = useTrans();
+const { isAuthenticated } = useAuth();
 
 interface Recording {
     id: number;
@@ -27,6 +31,9 @@ const pollInterval = ref<number | null>(null);
 const shareUrl = ref<string | null>(null);
 const isSharing = ref(false);
 const copied = ref(false);
+
+const showAuthModal = ref(false);
+const pendingAction = ref<'share' | null>(null);
 
 const canProcess = computed(() =>
     recording.value && ['uploaded', 'failed'].includes(recording.value.status)
@@ -92,6 +99,16 @@ const stopPolling = () => {
     if (pollInterval.value) { clearInterval(pollInterval.value); pollInterval.value = null; }
 };
 
+const handleShareClick = () => {
+    if (!isAuthenticated.value) {
+        pendingAction.value = 'share';
+        showAuthModal.value = true;
+        EventTracker.track('auth_prompt_shown', { action: 'share', recording_id: recording.value.id });
+        return;
+    }
+    createShare();
+};
+
 const createShare = async () => {
     if (!recording.value || isSharing.value) return;
     isSharing.value = true;
@@ -129,6 +146,26 @@ const copyShareUrl = async () => {
         }
     }
 };
+
+const handleAuthClose = () => {
+    showAuthModal.value = false;
+    pendingAction.value = null;
+};
+
+const handleAuthSuccess = () => {
+    showAuthModal.value = false;
+    if (pendingAction.value === 'share') {
+        createShare();
+    }
+    pendingAction.value = null;
+};
+
+// Check for auth success flash
+onMounted(() => {
+    if (page.props.flash?.auth_success && pendingAction.value === 'share') {
+        createShare();
+    }
+});
 
 onUnmounted(() => { stopPolling(); });
 
@@ -211,7 +248,7 @@ const statusConfig = computed(() => ({
                                 </svg>
                                 <span class="text-sm text-[#334155]">{{ t('share.title') }}</span>
                             </div>
-                            <button @click="createShare" :disabled="isSharing" class="px-4 py-2 text-sm font-medium text-white bg-[#4F46E5] rounded-lg hover:bg-[#4338CA] transition-colors disabled:opacity-50">
+                            <button @click="handleShareClick" :disabled="isSharing" class="px-4 py-2 text-sm font-medium text-white bg-[#4F46E5] rounded-lg hover:bg-[#4338CA] transition-colors disabled:opacity-50">
                                 {{ isSharing ? t('share.creating') : t('share.button') }}
                             </button>
                         </div>
@@ -332,5 +369,14 @@ const statusConfig = computed(() => ({
                 </Link>
             </div>
         </div>
+
+        <!-- Auth Modal -->
+        <AuthModal
+            :show="showAuthModal"
+            :action="pendingAction || 'share'"
+            :redirect-to="`/notes/${recording?.id}`"
+            @close="handleAuthClose"
+            @success="handleAuthSuccess"
+        />
     </AppLayout>
 </template>

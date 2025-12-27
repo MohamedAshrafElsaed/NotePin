@@ -70,6 +70,7 @@
     "footer.privacy": "الخصوصية",
     "footer.terms": "الشروط",
     "footer.support": "الدعم",
+    "footer.feedback": "أرسل ملاحظاتك",
 
     "status.uploaded": "تم الرفع",
     "status.processing": "قيد المعالجة",
@@ -78,5 +79,19 @@
 
     "time.today": "اليوم",
     "time.yesterday": "أمس",
-    "time.daysAgo": "منذ :count أيام"
+    "time.daysAgo": "منذ :count أيام",
+
+    "auth.title": "احفظ ملاحظاتك",
+    "auth.subtitle": "سجّل دخولك للاحتفاظ بملاحظاتك والوصول إليها لاحقاً.",
+    "auth.continueGoogle": "المتابعة مع Google",
+    "auth.continueEmail": "المتابعة بالبريد الإلكتروني",
+    "auth.or": "أو",
+    "auth.emailPlaceholder": "أدخل بريدك الإلكتروني",
+    "auth.sendLink": "أرسل رابط الدخول",
+    "auth.sending": "جاري الإرسال...",
+    "auth.emailSentTitle": "تحقق من بريدك",
+    "auth.emailSentDesc": "أرسلنا لك رابطاً سحرياً لتسجيل الدخول.",
+    "auth.tryAnotherMethod": "جرّب طريقة أخرى",
+    "auth.emailError": "فشل إرسال البريد. حاول مرة أخرى.",
+    "auth.terms": "بالمتابعة، أنت توافق على شروط الخدمة وسياسة الخصوصية."
 }

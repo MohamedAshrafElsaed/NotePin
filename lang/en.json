@@ -70,6 +70,7 @@
     "footer.privacy": "Privacy",
     "footer.terms": "Terms",
     "footer.support": "Support",
+    "footer.feedback": "Send Feedback",
 
     "status.uploaded": "Uploaded",
     "status.processing": "Processing",
@@ -78,5 +79,19 @@
 
     "time.today": "Today",
     "time.yesterday": "Yesterday",
-    "time.daysAgo": ":count days ago"
+    "time.daysAgo": ":count days ago",
+
+    "auth.title": "Save your notes",
+    "auth.subtitle": "Sign in to keep your notes and access them later.",
+    "auth.continueGoogle": "Continue with Google",
+    "auth.continueEmail": "Continue with Email",
+    "auth.or": "or",
+    "auth.emailPlaceholder": "Enter your email",
+    "auth.sendLink": "Send magic link",
+    "auth.sending": "Sending...",
+    "auth.emailSentTitle": "Check your inbox",
+    "auth.emailSentDesc": "We sent you a magic link to sign in.",
+    "auth.tryAnotherMethod": "Try another method",
+    "auth.emailError": "Failed to send email. Please try again.",
+    "auth.terms": "By continuing, you agree to our Terms of Service and Privacy Policy."
 }

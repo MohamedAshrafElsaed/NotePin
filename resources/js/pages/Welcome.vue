@@ -1,22 +1,32 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { ref, computed, onUnmounted } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { ref, computed, onUnmounted, watch } from 'vue';
+import { router, usePage } from '@inertiajs/vue3';
 import { useTrans } from '@/composables/useTrans';
 import AppLayout from '@/layouts/AppLayout.vue';
 
-const { t } = useTrans();
+const { t, locale } = useTrans();
+const page = usePage<{ auth: { user: any } }>();
 
-const isRecording = ref(false);
+type Step = 'idle' | 'recording' | 'uploading' | 'processing' | 'ready';
+
+const currentStep = ref<Step>('idle');
 const recordingTime = ref(0);
 const audioBlob = ref<Blob | null>(null);
-const audioUrl = ref<string | null>(null);
-const isUploading = ref(false);
 const error = ref<string | null>(null);
+const result = ref<{
+    id: number;
+    ai_title: string | null;
+    ai_summary: string | null;
+    ai_action_items: string[] | null;
+    duration_seconds: number | null;
+    created_at: string;
+} | null>(null);
 
 let mediaRecorder: MediaRecorder | null = null;
 let audioChunks: Blob[] = [];
 let intervalId: number | null = null;
+let pollInterval: number | null = null;
 
 const formattedTime = computed(() => {
     const mins = Math.floor(recordingTime.value / 60);
@@ -24,11 +34,15 @@ const formattedTime = computed(() => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 });
 
-const hasRecording = computed(() => audioBlob.value !== null);
+const stepMessages = computed(() => ({
+    uploading: { title: t('steps.uploading'), desc: t('steps.uploadingDesc') },
+    processing: { title: t('steps.processing'), desc: t('steps.processingDesc') },
+}));
 
 const startRecording = async () => {
     try {
         error.value = null;
+        result.value = null;
         audioChunks = [];
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaRecorder = new MediaRecorder(stream);
@@ -40,12 +54,12 @@ const startRecording = async () => {
         mediaRecorder.onstop = () => {
             const blob = new Blob(audioChunks, { type: 'audio/webm' });
             audioBlob.value = blob;
-            audioUrl.value = URL.createObjectURL(blob);
             stream.getTracks().forEach(track => track.stop());
+            autoUpload();
         };
 
         mediaRecorder.start();
-        isRecording.value = true;
+        currentStep.value = 'recording';
         recordingTime.value = 0;
         intervalId = window.setInterval(() => recordingTime.value++, 1000);
     } catch {
@@ -55,22 +69,12 @@ const startRecording = async () => {
 
 const stopRecording = () => {
     if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-    isRecording.value = false;
     if (intervalId) { clearInterval(intervalId); intervalId = null; }
 };
 
-const discardRecording = () => {
-    if (audioUrl.value) URL.revokeObjectURL(audioUrl.value);
-    audioBlob.value = null;
-    audioUrl.value = null;
-    recordingTime.value = 0;
-    error.value = null;
-};
-
-const uploadRecording = async () => {
+const autoUpload = async () => {
     if (!audioBlob.value) return;
-    isUploading.value = true;
-    error.value = null;
+    currentStep.value = 'uploading';
 
     const formData = new FormData();
     formData.append('audio', audioBlob.value, 'recording.webm');
@@ -87,16 +91,89 @@ const uploadRecording = async () => {
         });
         if (!response.ok) throw new Error('Upload failed');
         const data = await response.json();
-        router.visit(`/notes/${data.id}`);
+        autoProcess(data.id);
     } catch {
         error.value = t('recording.uploadFailed');
-        isUploading.value = false;
+        currentStep.value = 'idle';
     }
+};
+
+const autoProcess = async (recordingId: number) => {
+    currentStep.value = 'processing';
+
+    try {
+        const response = await fetch(`/recordings/${recordingId}/process`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '',
+            },
+        });
+        if (!response.ok) throw new Error('Process failed');
+        startPolling(recordingId);
+    } catch {
+        error.value = t('recording.processFailed');
+        currentStep.value = 'idle';
+    }
+};
+
+const startPolling = (recordingId: number) => {
+    let attempts = 0;
+    const maxAttempts = 60;
+
+    pollInterval = window.setInterval(async () => {
+        attempts++;
+        if (attempts > maxAttempts) { stopPolling(); error.value = t('recording.timeout'); currentStep.value = 'idle'; return; }
+
+        try {
+            const response = await fetch(`/recordings/${recordingId}`, {
+                headers: { 'Accept': 'application/json' },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.recording.status === 'ready') {
+                    result.value = data.recording;
+                    currentStep.value = 'ready';
+                    stopPolling();
+                } else if (data.recording.status === 'failed') {
+                    error.value = t('recording.processFailed');
+                    currentStep.value = 'idle';
+                    stopPolling();
+                }
+            }
+        } catch { /* Continue */ }
+    }, 2000);
+};
+
+const stopPolling = () => {
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+};
+
+const resetFlow = () => {
+    currentStep.value = 'idle';
+    recordingTime.value = 0;
+    audioBlob.value = null;
+    result.value = null;
+    error.value = null;
+};
+
+const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString(locale.value === 'ar' ? 'ar-EG' : 'en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    });
+};
+
+const formatDuration = (seconds: number | null) => {
+    if (!seconds) return '00:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
 onUnmounted(() => {
     if (intervalId) clearInterval(intervalId);
-    if (audioUrl.value) URL.revokeObjectURL(audioUrl.value);
+    stopPolling();
 });
 </script>
 
@@ -104,33 +181,25 @@ onUnmounted(() => {
     <Head :title="t('recording.title')" />
 
     <AppLayout>
-        <div class="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center px-4">
-            <!-- Hero Section -->
-            <div class="text-center mb-12">
-                <h1 class="text-4xl sm:text-5xl font-semibold text-[#0F172A] tracking-tight mb-4">
-                    {{ t('app.tagline') }}
-                </h1>
-                <p class="text-lg sm:text-xl text-[#334155] max-w-lg mx-auto leading-relaxed">
-                    {{ t('app.description') }}
-                </p>
+        <div class="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center px-4 py-8">
+            <!-- Hero (only in idle) -->
+            <div v-if="currentStep === 'idle'" class="text-center mb-12">
+                <h1 class="text-4xl sm:text-5xl font-semibold text-[#0F172A] tracking-tight mb-4">{{ t('app.tagline') }}</h1>
+                <p class="text-lg sm:text-xl text-[#334155] max-w-lg mx-auto leading-relaxed">{{ t('app.description') }}</p>
             </div>
 
-            <!-- Error Message -->
-            <div v-if="error" class="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <!-- Error -->
+            <div v-if="error" class="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm max-w-md w-full text-center">
                 {{ error }}
+                <button @click="error = null" class="ms-2 underline">{{ t('common.dismiss') }}</button>
             </div>
 
-            <!-- Recording State: Not Recording, No Recording -->
-            <template v-if="!isRecording && !hasRecording">
+            <!-- IDLE STATE -->
+            <template v-if="currentStep === 'idle'">
                 <div class="relative mb-8">
-                    <button
-                        @click="startRecording"
-                        class="relative z-10 w-40 h-40 rounded-full flex items-center justify-center bg-[#4F46E5] hover:bg-[#4338CA] hover:scale-105 transition-all duration-300"
-                    >
+                    <button @click="startRecording" class="relative z-10 w-40 h-40 rounded-full flex items-center justify-center bg-[#4F46E5] hover:bg-[#4338CA] hover:scale-105 transition-all duration-300 shadow-lg shadow-[#4F46E5]/30">
                         <div class="flex flex-col items-center">
-                            <svg class="w-12 h-12 text-white mb-1" fill="currentColor" viewBox="0 0 20 20">
-                                <circle cx="10" cy="10" r="5" />
-                            </svg>
+                            <svg class="w-12 h-12 text-white mb-1" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="5" /></svg>
                             <span class="text-white text-sm font-medium">{{ t('recording.record') }}</span>
                         </div>
                     </button>
@@ -138,68 +207,120 @@ onUnmounted(() => {
                 <p class="text-[#64748B] text-center max-w-sm">{{ t('recording.clickToStart') }}</p>
             </template>
 
-            <!-- Recording State: Recording -->
-            <template v-if="isRecording">
+            <!-- RECORDING STATE -->
+            <template v-if="currentStep === 'recording'">
                 <div class="relative mb-8">
                     <div class="absolute inset-0 flex items-center justify-center">
-                        <div class="absolute w-40 h-40 bg-[#4F46E5]/20 rounded-full animate-ping"></div>
+                        <div class="absolute w-40 h-40 bg-[#EF4444]/20 rounded-full animate-ping"></div>
+                        <div class="absolute w-48 h-48 bg-[#EF4444]/10 rounded-full animate-pulse"></div>
                     </div>
-                    <button
-                        @click="stopRecording"
-                        class="relative z-10 w-40 h-40 rounded-full flex items-center justify-center bg-[#EF4444] hover:bg-[#DC2626] scale-95 transition-all duration-300"
-                    >
+                    <button @click="stopRecording" class="relative z-10 w-40 h-40 rounded-full flex items-center justify-center bg-[#EF4444] hover:bg-[#DC2626] transition-all duration-300 shadow-lg shadow-[#EF4444]/30">
                         <div class="flex flex-col items-center">
-                            <svg class="w-10 h-10 text-white mb-1" fill="currentColor" viewBox="0 0 20 20">
-                                <rect x="5" y="5" width="10" height="10" rx="1" />
-                            </svg>
+                            <svg class="w-10 h-10 text-white mb-1" fill="currentColor" viewBox="0 0 20 20"><rect x="5" y="5" width="10" height="10" rx="1" /></svg>
                             <span class="text-white text-sm font-medium">{{ t('recording.stop') }}</span>
                         </div>
                     </button>
                 </div>
                 <div class="text-center">
-                    <div class="text-3xl font-semibold text-[#0F172A] tabular-nums">{{ formattedTime }}</div>
-                    <p class="text-[#64748B] mt-1">{{ t('recording.inProgress') }}</p>
+                    <div class="text-4xl font-semibold text-[#0F172A] tabular-nums mb-2">{{ formattedTime }}</div>
+                    <p class="text-[#64748B]">{{ t('recording.inProgress') }}</p>
                 </div>
             </template>
 
-            <!-- Recording State: Has Recording (Preview) -->
-            <template v-if="!isRecording && hasRecording">
-                <div class="w-full max-w-md">
+            <!-- UPLOADING / PROCESSING STATE -->
+            <template v-if="currentStep === 'uploading' || currentStep === 'processing'">
+                <div class="text-center max-w-md">
+                    <div class="relative mb-8">
+                        <div class="w-32 h-32 mx-auto relative">
+                            <svg class="w-32 h-32 animate-spin" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="45" fill="none" stroke="#EEF2FF" stroke-width="8"/>
+                                <circle cx="50" cy="50" r="45" fill="none" stroke="#4F46E5" stroke-width="8" stroke-linecap="round" stroke-dasharray="70 200" class="origin-center"/>
+                            </svg>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <div v-if="currentStep === 'uploading'" class="w-12 h-12 bg-[#EEF2FF] rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-[#4F46E5]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                                </div>
+                                <div v-else class="w-12 h-12 bg-[#F0FDF4] rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-[#22C55E]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <h2 class="text-2xl font-semibold text-[#0F172A] mb-2">{{ stepMessages[currentStep]?.title }}</h2>
+                    <p class="text-[#64748B]">{{ stepMessages[currentStep]?.desc }}</p>
+
+                    <!-- Progress steps -->
+                    <div class="flex items-center justify-center gap-2 mt-8">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 rounded-full bg-[#22C55E] flex items-center justify-center"><svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg></div>
+                            <span class="text-sm text-[#22C55E] font-medium">{{ t('steps.recorded') }}</span>
+                        </div>
+                        <div class="w-8 h-0.5 bg-[#E5E7EB]"></div>
+                        <div class="flex items-center gap-2">
+                            <div :class="['w-8 h-8 rounded-full flex items-center justify-center', currentStep === 'uploading' ? 'bg-[#4F46E5] animate-pulse' : 'bg-[#22C55E]']">
+                                <svg v-if="currentStep !== 'uploading'" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                <div v-else class="w-2 h-2 bg-white rounded-full"></div>
+                            </div>
+                            <span :class="['text-sm font-medium', currentStep === 'uploading' ? 'text-[#4F46E5]' : 'text-[#22C55E]']">{{ t('steps.uploaded') }}</span>
+                        </div>
+                        <div class="w-8 h-0.5 bg-[#E5E7EB]"></div>
+                        <div class="flex items-center gap-2">
+                            <div :class="['w-8 h-8 rounded-full flex items-center justify-center', currentStep === 'processing' ? 'bg-[#4F46E5] animate-pulse' : 'bg-[#E5E7EB]']">
+                                <div :class="['w-2 h-2 rounded-full', currentStep === 'processing' ? 'bg-white' : 'bg-[#64748B]']"></div>
+                            </div>
+                            <span :class="['text-sm font-medium', currentStep === 'processing' ? 'text-[#4F46E5]' : 'text-[#64748B]']">{{ t('steps.analyzing') }}</span>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- READY STATE - Results -->
+            <template v-if="currentStep === 'ready' && result">
+                <div class="w-full max-w-2xl">
+                    <!-- Success header -->
+                    <div class="text-center mb-8">
+                        <div class="w-16 h-16 bg-[#F0FDF4] rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8 text-[#22C55E]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                        </div>
+                        <h2 class="text-2xl font-semibold text-[#0F172A]">{{ t('steps.complete') }}</h2>
+                    </div>
+
+                    <!-- Title & Meta -->
+                    <div class="mb-6">
+                        <h1 class="text-2xl font-semibold text-[#0F172A]">{{ result.ai_title || t('notes.untitled') }}</h1>
+                        <div class="flex items-center gap-4 mt-2 text-sm text-[#64748B]">
+                            <span class="flex items-center gap-1"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>{{ formatDuration(result.duration_seconds) }}</span>
+                            <span>{{ formatDate(result.created_at) }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Summary -->
                     <div class="bg-white border border-[#E5E7EB] rounded-xl p-6 mb-6">
-                        <div class="flex items-center gap-3 mb-4">
-                            <div class="w-10 h-10 bg-[#EEF2FF] rounded-full flex items-center justify-center">
-                                <svg class="w-5 h-5 text-[#4F46E5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="font-medium text-[#0F172A]">{{ t('recording.ready') }}</p>
-                                <p class="text-sm text-[#64748B]">{{ t('recording.duration') }}: {{ formattedTime }}</p>
-                            </div>
+                        <div class="flex items-center gap-2 mb-4">
+                            <div class="w-8 h-8 bg-[#EEF2FF] rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-[#4F46E5]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></div>
+                            <h2 class="text-lg font-semibold text-[#0F172A]">{{ t('summary.title') }}</h2>
                         </div>
+                        <p class="text-[#334155] leading-relaxed whitespace-pre-line">{{ result.ai_summary }}</p>
+                    </div>
 
-                        <audio :src="audioUrl!" controls class="w-full mb-4" dir="ltr"></audio>
-
-                        <div class="flex gap-3">
-                            <button
-                                @click="discardRecording"
-                                :disabled="isUploading"
-                                class="flex-1 px-4 py-2.5 text-sm font-medium text-[#334155] bg-white border border-[#E5E7EB] rounded-lg hover:bg-[#F8FAFC] transition-colors disabled:opacity-50"
-                            >
-                                {{ t('recording.discard') }}
-                            </button>
-                            <button
-                                @click="uploadRecording"
-                                :disabled="isUploading"
-                                class="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-[#4F46E5] rounded-lg hover:bg-[#4338CA] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                            >
-                                <svg v-if="isUploading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                </svg>
-                                {{ isUploading ? t('recording.uploading') : t('recording.upload') }}
-                            </button>
+                    <!-- Action Items -->
+                    <div v-if="result.ai_action_items?.length" class="bg-white border border-[#E5E7EB] rounded-xl p-6 mb-6">
+                        <div class="flex items-center gap-2 mb-4">
+                            <div class="w-8 h-8 bg-[#F0FDF4] rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-[#22C55E]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg></div>
+                            <h2 class="text-lg font-semibold text-[#0F172A]">{{ t('actionItems.title') }}</h2>
                         </div>
+                        <ul class="space-y-3">
+                            <li v-for="(item, index) in result.ai_action_items" :key="index" class="flex items-start gap-3">
+                                <div class="w-5 h-5 mt-0.5 rounded border-2 border-[#E5E7EB] flex-shrink-0"></div>
+                                <span class="text-[#334155]">{{ item }}</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button @click="resetFlow" class="flex-1 px-5 py-3 text-sm font-medium text-white bg-[#4F46E5] rounded-lg hover:bg-[#4338CA] transition-colors">{{ t('recording.recordAnother') }}</button>
+                        <a :href="`/notes/${result.id}`" class="flex-1 px-5 py-3 text-sm font-medium text-center text-[#334155] bg-white border border-[#E5E7EB] rounded-lg hover:bg-[#F8FAFC] transition-colors">{{ t('recording.viewDetails') }}</a>
                     </div>
                 </div>
             </template>

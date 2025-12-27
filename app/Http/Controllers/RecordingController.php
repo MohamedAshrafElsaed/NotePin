@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Recording;
+use App\Services\AnonymousUserResolver;
+use App\Services\EventTracker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,22 +17,46 @@ class RecordingController extends Controller
         $request->validate([
             'audio' => 'required|file|mimes:webm,mp3,wav,ogg,m4a|max:51200',
             'duration' => 'nullable|integer|min:0',
+            'anonymous_id' => 'nullable|string|max:64',
         ]);
 
         $file = $request->file('audio');
         $path = $file->store('recordings', 'public');
 
+        $userId = auth()->id();
+        $anonymousId = null;
+
+        if (!$userId) {
+            $anonymousId = $request->input('anonymous_id') ?: AnonymousUserResolver::resolve($request);
+        }
+
         $recording = Recording::create([
-            'user_id' => auth()->id(),
+            'user_id' => $userId,
+            'anonymous_id' => $anonymousId,
             'status' => 'uploaded',
             'audio_path' => $path,
             'duration_seconds' => $request->input('duration'),
         ]);
 
-        return response()->json([
+        EventTracker::track('recording_created', [
+            'recording_id' => $recording->id,
+            'user_id' => $userId,
+            'metadata' => [
+                'duration_seconds' => $recording->duration_seconds,
+                'anonymous' => !$userId,
+            ],
+        ]);
+
+        $response = response()->json([
             'id' => $recording->id,
             'status' => $recording->status,
         ]);
+
+        if ($anonymousId) {
+            $response->withCookie(AnonymousUserResolver::makeCookie($anonymousId));
+        }
+
+        return $response;
     }
 
     public function show(int $id): Response

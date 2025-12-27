@@ -6,6 +6,7 @@ const { t } = useTrans();
 const currentYear = new Date().getFullYear();
 
 const footerLinks = [
+    { key: 'footer.feedback', href: 'mailto:feedback@notepin.app' },
     { key: 'footer.privacy', href: '#' },
     { key: 'footer.terms', href: '#' },
     { key: 'footer.support', href: '#' },
@@ -35,6 +36,7 @@ const footerLinks = [
                         :key="link.key"
                         :href="link.href"
                         class="text-sm text-[#64748B] hover:text-[#0F172A] transition-colors"
+                        :class="{ 'text-[#4F46E5] hover:text-[#4338CA] font-medium': link.key === 'footer.feedback' }"
                     >
                         {{ t(link.key) }}
                     </a>

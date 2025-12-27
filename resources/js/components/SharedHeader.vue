@@ -18,6 +18,7 @@ const { t } = useTrans();
                         </svg>
                     </div>
                     <span class="text-lg font-semibold text-[#0F172A]">{{ t('app.name') }}</span>
+                    <span class="px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-[#FEF3C7] text-[#B45309] rounded">Beta</span>
                 </div>
 
                 <!-- Actions -->

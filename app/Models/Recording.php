@@ -9,6 +9,7 @@ class Recording extends Model
 {
     protected $fillable = [
         'user_id',
+        'anonymous_id',
         'status',
         'audio_path',
         'duration_seconds',

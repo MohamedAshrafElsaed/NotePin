@@ -22,44 +22,7 @@ const props = defineProps<{
 
 const searchQuery = ref('');
 
-const notes = ref<Note[]>(props.notes ?? [
-    {
-        id: 1,
-        title: 'Q1 Product Roadmap Planning',
-        summary: 'Discussed Q1 priorities: onboarding improvements, mobile app beta, and Slack integration.',
-        actionItemsCount: 5,
-        completedCount: 2,
-        duration: '47:32',
-        createdAt: '2025-01-15T10:30:00Z',
-    },
-    {
-        id: 2,
-        title: 'Sales Team Weekly Sync',
-        summary: 'Reviewed pipeline status, discussed enterprise deals in progress, and upcoming marketing campaigns.',
-        actionItemsCount: 3,
-        completedCount: 1,
-        duration: '32:15',
-        createdAt: '2025-01-14T14:00:00Z',
-    },
-    {
-        id: 3,
-        title: 'Customer Feedback Review',
-        summary: 'Analyzed NPS scores and common feature requests. Prioritized top 3 issues for immediate action.',
-        actionItemsCount: 4,
-        completedCount: 4,
-        duration: '28:45',
-        createdAt: '2025-01-12T11:00:00Z',
-    },
-    {
-        id: 4,
-        title: 'Engineering Sprint Planning',
-        summary: 'Scoped next sprint work, addressed technical debt items, and reviewed deployment schedule.',
-        actionItemsCount: 6,
-        completedCount: 0,
-        duration: '55:20',
-        createdAt: '2025-01-10T09:00:00Z',
-    },
-]);
+const notes = ref<Note[]>(props.notes ?? []);
 
 const filteredNotes = computed(() => {
     if (!searchQuery.value) return notes.value;
@@ -109,7 +72,7 @@ const formatDate = (dateStr: string) => {
             </div>
 
             <!-- Search -->
-            <div class="relative mb-6">
+            <div v-if="notes.length > 0" class="relative mb-6">
                 <svg class="absolute start-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
@@ -132,7 +95,7 @@ const formatDate = (dateStr: string) => {
                     <div class="flex items-start justify-between gap-4">
                         <div class="flex-1 min-w-0">
                             <h3 class="font-semibold text-[#0F172A] group-hover:text-[#4F46E5] transition-colors truncate">
-                                {{ note.title }}
+                                {{ note.title || t('notes.untitled') }}
                             </h3>
                             <p class="text-sm text-[#64748B] mt-1 line-clamp-2">
                                 {{ note.summary }}
@@ -144,7 +107,7 @@ const formatDate = (dateStr: string) => {
                                     </svg>
                                     {{ note.duration }}
                                 </span>
-                                <span class="flex items-center gap-1">
+                                <span v-if="note.actionItemsCount > 0" class="flex items-center gap-1">
                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                                     </svg>
@@ -153,7 +116,7 @@ const formatDate = (dateStr: string) => {
                                 <span>{{ formatDate(note.createdAt) }}</span>
                             </div>
                         </div>
-                        <div class="flex items-center">
+                        <div v-if="note.actionItemsCount > 0" class="flex items-center">
                             <div
                                 :class="[
                                     'w-10 h-10 rounded-full flex items-center justify-center text-xs font-medium',

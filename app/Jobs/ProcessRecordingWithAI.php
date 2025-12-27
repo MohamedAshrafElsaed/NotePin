@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Recording;
+use App\Services\EventTracker;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -18,8 +19,7 @@ class ProcessRecordingWithAI implements ShouldQueue
 
     public function __construct(
         public int $recordingId
-    )
-    {
+    ) {
     }
 
     public function handle(): void
@@ -31,15 +31,12 @@ class ProcessRecordingWithAI implements ShouldQueue
         }
 
         try {
-            // Step 1: Transcribe audio
             $transcript = $this->transcribeAudio($recording->audio_path);
             $recording->transcript = $transcript;
             $recording->save();
 
-            // Step 2: Generate structured output
             $structured = $this->generateStructuredOutput($transcript);
 
-            // Step 3: Validate and save
             $recording->ai_title = $structured['title'] ?? 'Untitled Recording';
             $recording->ai_summary = $structured['summary'] ?? '';
             $recording->ai_action_items = array_slice($structured['action_items'] ?? [], 0, 10);
@@ -50,6 +47,14 @@ class ProcessRecordingWithAI implements ShouldQueue
             ];
             $recording->status = 'ready';
             $recording->save();
+
+            EventTracker::track('ai_ready', [
+                'recording_id' => $recording->id,
+                'user_id' => $recording->user_id,
+                'metadata' => [
+                    'action_items_count' => count($recording->ai_action_items ?? []),
+                ],
+            ]);
 
         } catch (Exception $e) {
             $recording->status = 'failed';
@@ -129,7 +134,6 @@ class ProcessRecordingWithAI implements ShouldQueue
         $content = $response->choices[0]->message->content ?? '{}';
         $content = trim($content);
 
-        // Remove markdown code blocks if present
         if (str_starts_with($content, '```')) {
             $content = preg_replace('/^```(?:json)?\s*/', '', $content);
             $content = preg_replace('/\s*```$/', '', $content);

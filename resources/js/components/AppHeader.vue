@@ -1,9 +1,51 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useTrans } from '@/composables/useTrans';
+import { useAuth } from '@/composables/useAuth';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 
 const { t } = useTrans();
+const { user, isAuthenticated } = useAuth();
+
+const showUserMenu = ref(false);
+const userMenuRef = ref<HTMLElement | null>(null);
+
+const toggleUserMenu = () => {
+    showUserMenu.value = !showUserMenu.value;
+};
+
+const closeUserMenu = () => {
+    showUserMenu.value = false;
+};
+
+const handleLogout = () => {
+    router.post('/logout');
+};
+
+const handleClickOutside = (event: MouseEvent) => {
+    if (userMenuRef.value && !userMenuRef.value.contains(event.target as Node)) {
+        closeUserMenu();
+    }
+};
+
+onMounted(() => {
+    document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside);
+});
+
+const getInitials = (name: string | null, email: string | null): string => {
+    if (name) {
+        return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    }
+    if (email) {
+        return email[0].toUpperCase();
+    }
+    return '?';
+};
 </script>
 
 <template>
@@ -18,6 +60,7 @@ const { t } = useTrans();
                         </svg>
                     </div>
                     <span class="text-xl font-semibold text-[#0F172A]">{{ t('app.name') }}</span>
+                    <span class="px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-[#FEF3C7] text-[#B45309] rounded">Beta</span>
                 </Link>
 
                 <!-- Nav Links -->
@@ -50,6 +93,52 @@ const { t } = useTrans();
                     </Link>
 
                     <LanguageSwitcher />
+
+                    <!-- User Menu -->
+                    <div v-if="isAuthenticated" ref="userMenuRef" class="relative">
+                        <button
+                            @click.stop="toggleUserMenu"
+                            class="flex items-center justify-center w-9 h-9 rounded-full overflow-hidden border-2 border-transparent hover:border-[#4F46E5] transition-colors focus:outline-none focus:border-[#4F46E5]"
+                        >
+                            <img
+                                v-if="user?.avatar"
+                                :src="user.avatar"
+                                :alt="user.name || user.email || ''"
+                                class="w-full h-full object-cover"
+                            />
+                            <div
+                                v-else
+                                class="w-full h-full bg-[#4F46E5] flex items-center justify-center text-white text-sm font-medium"
+                            >
+                                {{ getInitials(user?.name, user?.email) }}
+                            </div>
+                        </button>
+
+                        <Transition
+                            enter-active-class="transition ease-out duration-100"
+                            enter-from-class="transform opacity-0 scale-95"
+                            enter-to-class="transform opacity-100 scale-100"
+                            leave-active-class="transition ease-in duration-75"
+                            leave-from-class="transform opacity-100 scale-100"
+                            leave-to-class="transform opacity-0 scale-95"
+                        >
+                            <div
+                                v-show="showUserMenu"
+                                class="absolute top-full mt-1 end-0 w-48 bg-white border border-[#E5E7EB] rounded-lg shadow-lg z-50 overflow-hidden"
+                            >
+                                <div class="px-4 py-3 border-b border-[#E5E7EB]">
+                                    <p class="text-sm font-medium text-[#0F172A] truncate">{{ user?.name || 'User' }}</p>
+                                    <p class="text-xs text-[#64748B] truncate">{{ user?.email }}</p>
+                                </div>
+                                <button
+                                    @click="handleLogout"
+                                    class="w-full px-4 py-2.5 text-start text-sm text-[#334155] hover:bg-[#F8FAFC] transition-colors"
+                                >
+                                    Sign out
+                                </button>
+                            </div>
+                        </Transition>
+                    </div>
                 </div>
             </div>
         </nav>
