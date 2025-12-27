@@ -19,8 +19,20 @@
     "recording.uploading": "Uploading...",
     "recording.clickToStart": "Click the button to start recording.",
     "recording.recordAnother": "Record Another",
+    "recording.viewDetails": "View Details",
     "recording.micDenied": "Microphone access denied. Please allow microphone access.",
     "recording.uploadFailed": "Upload failed. Please try again.",
+    "recording.processFailed": "Processing failed. Please try again.",
+    "recording.timeout": "Processing timed out. Please try again.",
+
+    "steps.uploading": "Uploading your recording",
+    "steps.uploadingDesc": "Securely transferring your audio...",
+    "steps.processing": "AI is analyzing your recording",
+    "steps.processingDesc": "Extracting insights and action items...",
+    "steps.recorded": "Recorded",
+    "steps.uploaded": "Uploaded",
+    "steps.analyzing": "Analyzing",
+    "steps.complete": "Your notes are ready!",
 
     "notes.title": "My Notes",
     "notes.recordings": "recordings",
@@ -81,6 +93,8 @@
     "time.yesterday": "Yesterday",
     "time.daysAgo": ":count days ago",
 
+    "auth.signIn": "Sign in",
+    "auth.signOut": "Sign out",
     "auth.title": "Save your notes",
     "auth.subtitle": "Sign in to keep your notes and access them later.",
     "auth.continueGoogle": "Continue with Google",
@@ -93,5 +107,8 @@
     "auth.emailSentDesc": "We sent you a magic link to sign in.",
     "auth.tryAnotherMethod": "Try another method",
     "auth.emailError": "Failed to send email. Please try again.",
-    "auth.terms": "By continuing, you agree to our Terms of Service and Privacy Policy."
+    "auth.terms": "By continuing, you agree to our Terms of Service and Privacy Policy.",
+
+    "dashboard.title": "Dashboard",
+    "dashboard.welcome": "Welcome back, :name"
 }

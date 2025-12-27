@@ -14,6 +14,7 @@ interface Note {
     completedCount: number;
     duration: string;
     createdAt: string;
+    status: string;
 }
 
 const props = defineProps<{
@@ -21,7 +22,6 @@ const props = defineProps<{
 }>();
 
 const searchQuery = ref('');
-
 const notes = ref<Note[]>(props.notes ?? []);
 
 const filteredNotes = computed(() => {
@@ -46,6 +46,13 @@ const formatDate = (dateStr: string) => {
         month: 'short',
         day: 'numeric'
     });
+};
+
+const statusConfig: Record<string, { label: string; class: string }> = {
+    uploaded: { label: t('status.uploaded'), class: 'bg-blue-100 text-blue-700' },
+    processing: { label: t('status.processing'), class: 'bg-yellow-100 text-yellow-700' },
+    ready: { label: t('status.ready'), class: 'bg-green-100 text-green-700' },
+    failed: { label: t('status.failed'), class: 'bg-red-100 text-red-700' },
 };
 </script>
 
@@ -94,10 +101,15 @@ const formatDate = (dateStr: string) => {
                 >
                     <div class="flex items-start justify-between gap-4">
                         <div class="flex-1 min-w-0">
-                            <h3 class="font-semibold text-[#0F172A] group-hover:text-[#4F46E5] transition-colors truncate">
-                                {{ note.title || t('notes.untitled') }}
-                            </h3>
-                            <p class="text-sm text-[#64748B] mt-1 line-clamp-2">
+                            <div class="flex items-center gap-2 mb-1">
+                                <h3 class="font-semibold text-[#0F172A] group-hover:text-[#4F46E5] transition-colors truncate">
+                                    {{ note.title || t('notes.untitled') }}
+                                </h3>
+                                <span :class="['px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0', statusConfig[note.status]?.class || 'bg-gray-100 text-gray-700']">
+                                    {{ statusConfig[note.status]?.label || note.status }}
+                                </span>
+                            </div>
+                            <p v-if="note.summary" class="text-sm text-[#64748B] mt-1 line-clamp-2">
                                 {{ note.summary }}
                             </p>
                             <div class="flex items-center gap-4 mt-3 text-xs text-[#64748B]">
@@ -111,26 +123,9 @@ const formatDate = (dateStr: string) => {
                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                                     </svg>
-                                    {{ note.completedCount }}/{{ note.actionItemsCount }} {{ t('notes.tasks') }}
+                                    {{ note.actionItemsCount }} {{ t('notes.tasks') }}
                                 </span>
                                 <span>{{ formatDate(note.createdAt) }}</span>
-                            </div>
-                        </div>
-                        <div v-if="note.actionItemsCount > 0" class="flex items-center">
-                            <div
-                                :class="[
-                                    'w-10 h-10 rounded-full flex items-center justify-center text-xs font-medium',
-                                    note.completedCount === note.actionItemsCount
-                                        ? 'bg-[#F0FDF4] text-[#22C55E]'
-                                        : 'bg-[#F8FAFC] text-[#64748B]'
-                                ]"
-                            >
-                                <span v-if="note.completedCount === note.actionItemsCount">
-                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                </span>
-                                <span v-else>{{ Math.round((note.completedCount / note.actionItemsCount) * 100) }}%</span>
                             </div>
                         </div>
                     </div>

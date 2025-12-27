@@ -4,11 +4,13 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useTrans } from '@/composables/useTrans';
 import { useAuth } from '@/composables/useAuth';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
+import AuthModal from '@/components/AuthModal.vue';
 
 const { t } = useTrans();
 const { user, isAuthenticated } = useAuth();
 
 const showUserMenu = ref(false);
+const showAuthModal = ref(false);
 const userMenuRef = ref<HTMLElement | null>(null);
 
 const toggleUserMenu = () => {
@@ -20,6 +22,7 @@ const closeUserMenu = () => {
 };
 
 const handleLogout = () => {
+    closeUserMenu();
     router.post('/logout');
 };
 
@@ -37,7 +40,7 @@ onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside);
 });
 
-const getInitials = (name: string | null, email: string | null): string => {
+const getInitials = (name: string | null | undefined, email: string | null | undefined): string => {
     if (name) {
         return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
     }
@@ -53,7 +56,7 @@ const getInitials = (name: string | null, email: string | null): string => {
         <nav class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <!-- Logo -->
-                <Link href="/" class="flex items-center gap-2">
+                <Link :href="isAuthenticated ? '/dashboard' : '/'" class="flex items-center gap-2">
                     <div class="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
                         <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -64,14 +67,17 @@ const getInitials = (name: string | null, email: string | null): string => {
                 </Link>
 
                 <!-- Nav Links -->
-                <div class="flex items-center gap-2 sm:gap-4">
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <!-- My Notes link for authenticated users -->
                     <Link
-                        href="/notes"
+                        v-if="isAuthenticated"
+                        href="/dashboard"
                         class="text-[#334155] hover:text-[#0F172A] font-medium transition-colors px-3 py-2 rounded-lg hover:bg-[#F8FAFC]"
                     >
                         {{ t('nav.myNotes') }}
                     </Link>
 
+                    <!-- New Recording button - desktop -->
                     <Link
                         href="/"
                         class="hidden sm:inline-flex items-center gap-2 bg-[#4F46E5] hover:bg-[#4338CA] text-white px-4 py-2 rounded-lg font-medium transition-colors"
@@ -92,25 +98,38 @@ const getInitials = (name: string | null, email: string | null): string => {
                         </svg>
                     </Link>
 
+                    <!-- Language Switcher -->
                     <LanguageSwitcher />
 
-                    <!-- User Menu -->
-                    <div v-if="isAuthenticated" ref="userMenuRef" class="relative">
+                    <!-- Login button for non-authenticated users -->
+                    <button
+                        v-if="!isAuthenticated"
+                        @click="showAuthModal = true"
+                        class="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-white bg-[#22C55E] hover:bg-[#16A34A] rounded-lg transition-colors"
+                    >
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <span>{{ t('auth.signIn') }}</span>
+                    </button>
+
+                    <!-- User Menu for authenticated users -->
+                    <div v-if="isAuthenticated && user" ref="userMenuRef" class="relative">
                         <button
                             @click.stop="toggleUserMenu"
                             class="flex items-center justify-center w-9 h-9 rounded-full overflow-hidden border-2 border-transparent hover:border-[#4F46E5] transition-colors focus:outline-none focus:border-[#4F46E5]"
                         >
                             <img
-                                v-if="user?.avatar"
+                                v-if="user.avatar"
                                 :src="user.avatar"
-                                :alt="user.name || user.email || ''"
+                                :alt="user.name || user.email || 'User'"
                                 class="w-full h-full object-cover"
                             />
                             <div
                                 v-else
                                 class="w-full h-full bg-[#4F46E5] flex items-center justify-center text-white text-sm font-medium"
                             >
-                                {{ getInitials(user?.name, user?.email) }}
+                                {{ getInitials(user.name, user.email) }}
                             </div>
                         </button>
 
@@ -127,14 +146,14 @@ const getInitials = (name: string | null, email: string | null): string => {
                                 class="absolute top-full mt-1 end-0 w-48 bg-white border border-[#E5E7EB] rounded-lg shadow-lg z-50 overflow-hidden"
                             >
                                 <div class="px-4 py-3 border-b border-[#E5E7EB]">
-                                    <p class="text-sm font-medium text-[#0F172A] truncate">{{ user?.name || 'User' }}</p>
-                                    <p class="text-xs text-[#64748B] truncate">{{ user?.email }}</p>
+                                    <p class="text-sm font-medium text-[#0F172A] truncate">{{ user.name || 'User' }}</p>
+                                    <p class="text-xs text-[#64748B] truncate">{{ user.email }}</p>
                                 </div>
                                 <button
                                     @click="handleLogout"
                                     class="w-full px-4 py-2.5 text-start text-sm text-[#334155] hover:bg-[#F8FAFC] transition-colors"
                                 >
-                                    Sign out
+                                    {{ t('auth.signOut') }}
                                 </button>
                             </div>
                         </Transition>
@@ -143,4 +162,12 @@ const getInitials = (name: string | null, email: string | null): string => {
             </div>
         </nav>
     </header>
+
+    <!-- Auth Modal -->
+    <AuthModal
+        :show="showAuthModal"
+        action="login"
+        redirect-to="/dashboard"
+        @close="showAuthModal = false"
+    />
 </template>

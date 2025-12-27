@@ -27,6 +27,8 @@ export function useAuth() {
     const recordingCount = computed(() => page.props.auth?.recordingCount ?? 0);
 
     const getAnonymousId = (): string => {
+        if (typeof window === 'undefined') return '';
+
         let id = localStorage.getItem('notepin_anon_id');
         if (!id) {
             id = crypto.randomUUID();
@@ -36,6 +38,7 @@ export function useAuth() {
     };
 
     const clearAnonymousId = (): void => {
+        if (typeof window === 'undefined') return;
         localStorage.removeItem('notepin_anon_id');
     };
 

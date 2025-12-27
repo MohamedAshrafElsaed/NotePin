@@ -15,7 +15,7 @@ class GoogleAuthController extends Controller
 {
     public function redirect(Request $request): RedirectResponse
     {
-        $request->session()->put('auth_redirect', $request->input('redirect', '/'));
+        $request->session()->put('auth_redirect', $request->input('redirect', '/dashboard'));
         $request->session()->put('auth_action', $request->input('action'));
         $request->session()->put('auth_anonymous_id', $request->input('anonymous_id'));
 
@@ -75,9 +75,8 @@ class GoogleAuthController extends Controller
             ],
         ]);
 
-        $intended = session('url.intended', '/dashboard');
-        session()->forget('url.intended');
+        $redirect = $request->session()->pull('auth_redirect', '/dashboard');
 
-        return redirect($intended);
+        return redirect($redirect)->with('auth_success', true);
     }
 }

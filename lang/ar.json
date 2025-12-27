@@ -19,8 +19,20 @@
     "recording.uploading": "جاري الرفع...",
     "recording.clickToStart": "اضغط على الزر لبدء التسجيل.",
     "recording.recordAnother": "تسجيل آخر",
+    "recording.viewDetails": "عرض التفاصيل",
     "recording.micDenied": "تم رفض الوصول للميكروفون. يرجى السماح بالوصول.",
     "recording.uploadFailed": "فشل الرفع. يرجى المحاولة مرة أخرى.",
+    "recording.processFailed": "فشلت المعالجة. يرجى المحاولة مرة أخرى.",
+    "recording.timeout": "انتهت مهلة المعالجة. يرجى المحاولة مرة أخرى.",
+
+    "steps.uploading": "جاري رفع التسجيل",
+    "steps.uploadingDesc": "نقل الصوت بشكل آمن...",
+    "steps.processing": "الذكاء الاصطناعي يحلل تسجيلك",
+    "steps.processingDesc": "استخراج الأفكار والمهام...",
+    "steps.recorded": "تم التسجيل",
+    "steps.uploaded": "تم الرفع",
+    "steps.analyzing": "جاري التحليل",
+    "steps.complete": "ملاحظاتك جاهزة!",
 
     "notes.title": "ملاحظاتي",
     "notes.recordings": "تسجيلات",
@@ -81,6 +93,8 @@
     "time.yesterday": "أمس",
     "time.daysAgo": "منذ :count أيام",
 
+    "auth.signIn": "تسجيل الدخول",
+    "auth.signOut": "تسجيل الخروج",
     "auth.title": "احفظ ملاحظاتك",
     "auth.subtitle": "سجّل دخولك للاحتفاظ بملاحظاتك والوصول إليها لاحقاً.",
     "auth.continueGoogle": "المتابعة مع Google",
@@ -93,5 +107,8 @@
     "auth.emailSentDesc": "أرسلنا لك رابطاً سحرياً لتسجيل الدخول.",
     "auth.tryAnotherMethod": "جرّب طريقة أخرى",
     "auth.emailError": "فشل إرسال البريد. حاول مرة أخرى.",
-    "auth.terms": "بالمتابعة، أنت توافق على شروط الخدمة وسياسة الخصوصية."
+    "auth.terms": "بالمتابعة، أنت توافق على شروط الخدمة وسياسة الخصوصية.",
+
+    "dashboard.title": "لوحة التحكم",
+    "dashboard.welcome": "مرحباً، :name"
 }

@@ -20,7 +20,7 @@ const languages: Record<string, Language> = {
     en: { code: 'en', name: 'English', nativeName: 'English', flag: '🇺🇸' },
 };
 
-const currentLang = computed(() => languages[locale.value] || languages.ar);
+const currentLang = computed(() => languages[locale.value] || languages.en);
 
 const switchLocale = (newLocale: string) => {
     if (newLocale === locale.value) {
@@ -73,7 +73,7 @@ onUnmounted(() => {
         <!-- Trigger Button -->
         <button
             @click.stop="toggleDropdown"
-            class="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-sm text-[#334155] hover:text-[#4F46E5] transition-colors rounded-lg hover:bg-[#F8FAFC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2"
+            class="flex items-center gap-1.5 px-2 sm:px-3 py-2 text-sm text-[#334155] hover:text-[#4F46E5] transition-colors rounded-lg hover:bg-[#F8FAFC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2 border border-[#E5E7EB]"
             :aria-expanded="isOpen"
             aria-haspopup="listbox"
         >
@@ -104,7 +104,7 @@ onUnmounted(() => {
                 v-show="isOpen"
                 class="absolute top-full mt-1 bg-white border border-[#E5E7EB] rounded-lg shadow-lg z-50 min-w-[150px] overflow-hidden end-0"
                 role="listbox"
-                :aria-label="'Select language'"
+                aria-label="Select language"
             >
                 <button
                     v-for="loc in locales"

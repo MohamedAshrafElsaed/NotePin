@@ -5,7 +5,6 @@ import { useTrans } from '@/composables/useTrans';
 import { useAuth } from '@/composables/useAuth';
 import AppLayout from '@/layouts/AppLayout.vue';
 import AuthModal from '@/components/AuthModal.vue';
-import { EventTracker } from '@/services/EventTracker';
 
 const { t, locale } = useTrans();
 const { isAuthenticated } = useAuth();
@@ -23,7 +22,7 @@ interface Recording {
     created_at: string;
 }
 
-const page = usePage<{ recording: Recording }>();
+const page = usePage<{ recording: Recording; flash?: { auth_success?: boolean } }>();
 const recording = ref<Recording>(page.props.recording);
 const isProcessing = ref(false);
 const pollInterval = ref<number | null>(null);
@@ -33,7 +32,6 @@ const isSharing = ref(false);
 const copied = ref(false);
 
 const showAuthModal = ref(false);
-const pendingAction = ref<'share' | null>(null);
 
 const canProcess = computed(() =>
     recording.value && ['uploaded', 'failed'].includes(recording.value.status)
@@ -101,9 +99,7 @@ const stopPolling = () => {
 
 const handleShareClick = () => {
     if (!isAuthenticated.value) {
-        pendingAction.value = 'share';
         showAuthModal.value = true;
-        EventTracker.track('auth_prompt_shown', { action: 'share', recording_id: recording.value.id });
         return;
     }
     createShare();
@@ -149,20 +145,10 @@ const copyShareUrl = async () => {
 
 const handleAuthClose = () => {
     showAuthModal.value = false;
-    pendingAction.value = null;
 };
 
-const handleAuthSuccess = () => {
-    showAuthModal.value = false;
-    if (pendingAction.value === 'share') {
-        createShare();
-    }
-    pendingAction.value = null;
-};
-
-// Check for auth success flash
 onMounted(() => {
-    if (page.props.flash?.auth_success && pendingAction.value === 'share') {
+    if (page.props.flash?.auth_success && isAuthenticated.value) {
         createShare();
     }
 });
@@ -203,7 +189,7 @@ const statusConfig = computed(() => ({
         <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <!-- Breadcrumb -->
             <div class="flex items-center gap-2 text-sm text-[#64748B] mb-6">
-                <Link href="/" class="hover:text-[#4F46E5] transition-colors">{{ t('nav.home') }}</Link>
+                <Link :href="isAuthenticated ? '/dashboard' : '/'" class="hover:text-[#4F46E5] transition-colors">{{ t('nav.home') }}</Link>
                 <svg class="w-4 h-4 rtl:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                 </svg>
@@ -373,10 +359,9 @@ const statusConfig = computed(() => ({
         <!-- Auth Modal -->
         <AuthModal
             :show="showAuthModal"
-            :action="pendingAction || 'share'"
+            action="share"
             :redirect-to="`/notes/${recording?.id}`"
             @close="handleAuthClose"
-            @success="handleAuthSuccess"
         />
     </AppLayout>
 </template>

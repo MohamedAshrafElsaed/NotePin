@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Recording;
-use App\Services\AnonymousUserResolver;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -13,24 +12,12 @@ class NotesController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        $anonymousId = $request->cookie(AnonymousUserResolver::getCookieName());
 
-        $query = Recording::query()
+        $recordings = Recording::query()
+            ->where('user_id', $user->id)
             ->whereIn('status', ['ready', 'processing', 'uploaded', 'failed'])
-            ->orderByDesc('created_at');
-
-        if ($user) {
-            $query->where('user_id', $user->id);
-        } elseif ($anonymousId) {
-            $query->where('anonymous_id', $anonymousId);
-        } else {
-            // No user and no anonymous ID, return empty
-            return Inertia::render('Notes/Index', [
-                'notes' => [],
-            ]);
-        }
-
-        $recordings = $query->get();
+            ->orderByDesc('created_at')
+            ->get();
 
         $notes = $recordings->map(function ($recording) {
             $actionItems = $recording->ai_action_items ?? [];

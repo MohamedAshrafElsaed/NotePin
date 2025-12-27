@@ -11,7 +11,7 @@ interface PageProps {
 export function useTrans() {
     const page = usePage<PageProps>();
 
-    const locale = computed(() => page.props.locale ?? 'ar');
+    const locale = computed(() => page.props.locale ?? 'en');
     const locales = computed(() => page.props.locales ?? ['ar', 'en']);
     const isRTL = computed(() => locale.value === 'ar');
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useTrans } from '@/composables/useTrans';
 
 const { t } = useTrans();
@@ -12,12 +12,11 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
     action: 'default',
-    redirectTo: '/',
+    redirectTo: '/dashboard',
 });
 
 const emit = defineEmits<{
     close: [];
-    success: [];
 }>();
 
 const emailInput = ref('');
@@ -25,6 +24,9 @@ const emailSent = ref(false);
 const emailSending = ref(false);
 const emailError = ref<string | null>(null);
 const showEmailForm = ref(false);
+
+// Only show Google for share action
+const isGoogleOnly = computed(() => props.action === 'share');
 
 const getAnonymousId = (): string => {
     let id = localStorage.getItem('notepin_anon_id');
@@ -170,49 +172,52 @@ watch(() => props.show, (newVal) => {
                             {{ t('auth.continueGoogle') }}
                         </button>
 
-                        <!-- Divider -->
-                        <div class="relative flex items-center py-2">
-                            <div class="flex-1 border-t border-[#E5E7EB]"></div>
-                            <span class="px-3 text-sm text-[#64748B]">{{ t('auth.or') }}</span>
-                            <div class="flex-1 border-t border-[#E5E7EB]"></div>
-                        </div>
-
-                        <!-- Email Form -->
-                        <div v-if="showEmailForm">
-                            <div class="space-y-3">
-                                <input
-                                    v-model="emailInput"
-                                    type="email"
-                                    :placeholder="t('auth.emailPlaceholder')"
-                                    class="w-full px-4 py-3 bg-white border border-[#E5E7EB] rounded-xl text-[#0F172A] placeholder-[#64748B] focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#EEF2FF] transition-colors"
-                                    @keyup.enter="handleEmailSubmit"
-                                />
-                                <p v-if="emailError" class="text-sm text-[#EF4444]">{{ emailError }}</p>
-                                <button
-                                    @click="handleEmailSubmit"
-                                    :disabled="!emailInput || emailSending"
-                                    class="w-full px-4 py-3 bg-[#4F46E5] text-white rounded-xl font-medium hover:bg-[#4338CA] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                >
-                                    <svg v-if="emailSending" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                    </svg>
-                                    {{ emailSending ? t('auth.sending') : t('auth.sendLink') }}
-                                </button>
+                        <!-- Email option (not for share action) -->
+                        <template v-if="!isGoogleOnly">
+                            <!-- Divider -->
+                            <div class="relative flex items-center py-2">
+                                <div class="flex-1 border-t border-[#E5E7EB]"></div>
+                                <span class="px-3 text-sm text-[#64748B]">{{ t('auth.or') }}</span>
+                                <div class="flex-1 border-t border-[#E5E7EB]"></div>
                             </div>
-                        </div>
 
-                        <!-- Email Button -->
-                        <button
-                            v-else
-                            @click="showEmailForm = true"
-                            class="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-[#E5E7EB] rounded-xl font-medium text-[#0F172A] hover:bg-[#F8FAFC] hover:border-[#D1D5DB] transition-colors"
-                        >
-                            <svg class="w-5 h-5 text-[#64748B]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            {{ t('auth.continueEmail') }}
-                        </button>
+                            <!-- Email Form -->
+                            <div v-if="showEmailForm">
+                                <div class="space-y-3">
+                                    <input
+                                        v-model="emailInput"
+                                        type="email"
+                                        :placeholder="t('auth.emailPlaceholder')"
+                                        class="w-full px-4 py-3 bg-white border border-[#E5E7EB] rounded-xl text-[#0F172A] placeholder-[#64748B] focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#EEF2FF] transition-colors"
+                                        @keyup.enter="handleEmailSubmit"
+                                    />
+                                    <p v-if="emailError" class="text-sm text-[#EF4444]">{{ emailError }}</p>
+                                    <button
+                                        @click="handleEmailSubmit"
+                                        :disabled="!emailInput || emailSending"
+                                        class="w-full px-4 py-3 bg-[#4F46E5] text-white rounded-xl font-medium hover:bg-[#4338CA] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        <svg v-if="emailSending" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                        </svg>
+                                        {{ emailSending ? t('auth.sending') : t('auth.sendLink') }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Email Button -->
+                            <button
+                                v-else
+                                @click="showEmailForm = true"
+                                class="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-[#E5E7EB] rounded-xl font-medium text-[#0F172A] hover:bg-[#F8FAFC] hover:border-[#D1D5DB] transition-colors"
+                            >
+                                <svg class="w-5 h-5 text-[#64748B]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                {{ t('auth.continueEmail') }}
+                            </button>
+                        </template>
                     </div>
 
                     <!-- Footer -->

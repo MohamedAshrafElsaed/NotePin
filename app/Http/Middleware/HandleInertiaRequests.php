@@ -4,7 +4,6 @@ namespace App\Http\Middleware;
 
 use App\Models\Recording;
 use App\Services\AnonymousUserResolver;
-use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Inertia\Middleware;
@@ -20,8 +19,6 @@ class HandleInertiaRequests extends Middleware
 
     public function share(Request $request): array
     {
-        [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
-
         $user = $request->user();
         $anonymousId = $request->cookie(AnonymousUserResolver::getCookieName());
 
@@ -35,7 +32,6 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'name' => config('app.name'),
-            'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => $user ? [
                     'id' => $user->id,
@@ -46,9 +42,9 @@ class HandleInertiaRequests extends Middleware
                 'isAuthenticated' => (bool) $user,
                 'recordingCount' => $recordingCount,
             ],
-            'locale' => fn () => app()->getLocale(),
+            'locale' => app()->getLocale(),
             'locales' => ['ar', 'en'],
-            'translations' => fn () => $this->getTranslations(),
+            'translations' => $this->getTranslations(),
             'flash' => [
                 'auth_success' => $request->session()->get('auth_success'),
                 'error' => $request->session()->get('error'),
@@ -65,14 +61,10 @@ class HandleInertiaRequests extends Middleware
             return json_decode(File::get($path), true) ?? [];
         }
 
-        $phpPath = lang_path("{$locale}");
-        if (File::isDirectory($phpPath)) {
-            $translations = [];
-            foreach (File::files($phpPath) as $file) {
-                $key = $file->getFilenameWithoutExtension();
-                $translations[$key] = require $file->getPathname();
-            }
-            return $translations;
+        // Fallback to English
+        $fallbackPath = lang_path('en.json');
+        if (File::exists($fallbackPath)) {
+            return json_decode(File::get($fallbackPath), true) ?? [];
         }
 
         return [];

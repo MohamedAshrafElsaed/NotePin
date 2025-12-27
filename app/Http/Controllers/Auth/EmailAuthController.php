@@ -25,7 +25,7 @@ class EmailAuthController extends Controller
         ]);
 
         $email = $request->input('email');
-        $redirect = $request->input('redirect', '/');
+        $redirect = $request->input('redirect', '/dashboard');
         $action = $request->input('action');
         $anonymousId = $request->input('anonymous_id');
 
@@ -58,7 +58,7 @@ class EmailAuthController extends Controller
         }
 
         $email = $request->query('email');
-        $redirect = $request->query('redirect', '/');
+        $redirect = $request->query('redirect', '/dashboard');
         $action = $request->query('action');
         $anonymousId = $request->query('anonymous_id');
 

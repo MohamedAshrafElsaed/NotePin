@@ -13,13 +13,20 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-// Home
+// Home / Recording page - always accessible
 Route::get('/', function () {
     return Inertia::render('Welcome');
 })->name('home');
 
+// Login route for auth middleware redirect
+Route::get('/login', function () {
+    return redirect('/');
+})->name('login');
+
 // Locale
-Route::post('/locale/{locale}', [LocaleController::class, 'update'])->name('locale.update');
+Route::post('/locale/{locale}', [LocaleController::class, 'update'])
+    ->name('locale.update')
+    ->whereIn('locale', ['ar', 'en']);
 
 // Auth Routes
 Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->name('auth.google');
@@ -34,14 +41,17 @@ Route::post('/logout', function () {
     return redirect('/');
 })->name('logout');
 
-// Recordings
+// Recordings - public upload
 Route::post('/recordings', [RecordingController::class, 'store'])->name('recordings.store');
 Route::get('/recordings/{recording}', [RecordingController::class, 'json'])->name('recordings.json');
 Route::post('/recordings/{recording}/process', [RecordingProcessController::class, 'store'])->name('recordings.process');
-Route::post('/recordings/{recording}/share', [ShareController::class, 'store'])->name('recordings.share');
 
-// Notes
-Route::get('/notes', [NotesController::class, 'index'])->name('notes.index');
+// Share - requires auth
+Route::post('/recordings/{recording}/share', [ShareController::class, 'store'])
+    ->middleware('auth')
+    ->name('recordings.share');
+
+// Notes show - accessible for viewing own recordings
 Route::get('/notes/{id}', [RecordingController::class, 'show'])->name('notes.show');
 
 // Public Share
@@ -50,13 +60,8 @@ Route::get('/share/{token}', [ShareController::class, 'show'])->name('share.show
 // API
 Route::post('/api/events', [EventController::class, 'store'])->name('api.events.store');
 
-
 // Dashboard (auth required)
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/notes', fn() => redirect('/dashboard'));
+    Route::get('/notes', [NotesController::class, 'index'])->name('notes.index');
 });
-
-Route::post('/locale/{locale}', [LocaleController::class, 'update'])
-    ->name('locale.update')
-    ->whereIn('locale', ['ar', 'en']);

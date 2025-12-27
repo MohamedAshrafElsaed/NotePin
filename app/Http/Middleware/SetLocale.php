@@ -13,13 +13,14 @@ class SetLocale
 
     public function handle(Request $request, Closure $next): Response
     {
-        // Priority: URL param > Session > Cookie > Browser > Default
-        $locale = config('app.locale');
-
+        // Priority: Session > Cookie > Browser > Default
+        $locale = $request->session()->get('locale')
+            ?? $request->cookie('locale')
+            ?? $this->getBrowserLocale($request)
+            ?? config('app.locale');
 
         if (in_array($locale, $this->supportedLocales)) {
             App::setLocale($locale);
-            $request->session()->put('locale', $locale);
         }
 
         return $next($request);
