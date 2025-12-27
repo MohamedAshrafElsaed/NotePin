@@ -1,31 +1,43 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useTrans } from '@/composables/useTrans';
-import AppHeader from '@/components/AppHeader.vue';
-import AppFooter from '@/components/AppFooter.vue';
+import FloatingMicButton from '@/components/FloatingMicButton.vue';
+import RecorderSheet from '@/components/RecorderSheet.vue';
 
 const { isRTL } = useTrans();
 
-defineProps<{
+interface Props {
+    showFab?: boolean;
     showHeader?: boolean;
-    showFooter?: boolean;
-}>();
+}
+
+withDefaults(defineProps<Props>(), {
+    showFab: true,
+    showHeader: true,
+});
+
+const showRecorder = ref(false);
+
+const openRecorder = () => {
+    showRecorder.value = true;
+};
 </script>
 
 <template>
-    <div
-        class="app-layout"
-        :dir="isRTL ? 'rtl' : 'ltr'"
-    >
-        <!-- Header -->
-        <AppHeader v-if="showHeader !== false" />
+    <div class="app-layout" :dir="isRTL ? 'rtl' : 'ltr'">
+        <!-- Header slot -->
+        <slot name="header" />
 
         <!-- Main Content -->
-        <main class="app-main">
+        <main class="app-main" :class="{ 'has-fab': showFab }">
             <slot />
         </main>
 
-        <!-- Footer (Sticky to bottom) -->
-        <AppFooter v-if="showFooter !== false" />
+        <!-- Floating Mic Button -->
+        <FloatingMicButton v-if="showFab" @click="openRecorder" />
+
+        <!-- Recorder Bottom Sheet -->
+        <RecorderSheet :show="showRecorder" @close="showRecorder = false" />
     </div>
 </template>
 
@@ -34,7 +46,7 @@ defineProps<{
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    min-height: 100dvh; /* Dynamic viewport height for mobile */
+    min-height: 100dvh;
     background-color: #F8FAFC;
 }
 
@@ -42,5 +54,9 @@ defineProps<{
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
+}
+
+.app-main.has-fab {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 </style>

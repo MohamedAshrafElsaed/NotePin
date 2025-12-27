@@ -1,404 +1,202 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
-import { ref, computed, onUnmounted } from 'vue';
+import { Head, Link, usePage } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 import { useTrans } from '@/composables/useTrans';
 import { useAuth } from '@/composables/useAuth';
 import AppLayout from '@/layouts/AppLayout.vue';
 import AuthModal from '@/components/AuthModal.vue';
 
 const { t, locale } = useTrans();
-const { getAnonymousId, isAuthenticated } = useAuth();
+const { isAuthenticated, user, recordingCount } = useAuth();
 
-type Step = 'idle' | 'recording' | 'uploading' | 'processing' | 'ready';
+interface PageProps {
+    auth: {
+        user: { id: number; name: string | null; email: string | null; avatar: string | null } | null;
+        isAuthenticated: boolean;
+        recordingCount: number;
+    };
+}
 
-const currentStep = ref<Step>('idle');
-const recordingTime = ref(0);
-const audioBlob = ref<Blob | null>(null);
-const error = ref<string | null>(null);
-const uploadProgress = ref(0);
-const processingProgress = ref(0);
+const page = usePage<PageProps>();
 const showAuthModal = ref(false);
-const result = ref<{
-    id: number;
-    ai_title: string | null;
-    ai_summary: string | null;
-    ai_action_items: string[] | null;
-    duration_seconds: number | null;
-    created_at: string;
-} | null>(null);
 
-let mediaRecorder: MediaRecorder | null = null;
-let audioChunks: Blob[] = [];
-let intervalId: number | null = null;
-let pollInterval: number | null = null;
-let progressInterval: number | null = null;
-
-const formattedTime = computed(() => {
-    const mins = Math.floor(recordingTime.value / 60);
-    const secs = recordingTime.value % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-});
-
-const startRecording = async () => {
-    try {
-        error.value = null;
-        result.value = null;
-        audioChunks = [];
-        uploadProgress.value = 0;
-        processingProgress.value = 0;
-
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) audioChunks.push(event.data);
-        };
-
-        mediaRecorder.onstop = () => {
-            const blob = new Blob(audioChunks, { type: 'audio/webm' });
-            audioBlob.value = blob;
-            stream.getTracks().forEach(track => track.stop());
-            autoUpload();
-        };
-
-        mediaRecorder.start();
-        currentStep.value = 'recording';
-        recordingTime.value = 0;
-        intervalId = window.setInterval(() => recordingTime.value++, 1000);
-    } catch {
-        error.value = t('recording.micDenied');
-    }
-};
-
-const stopRecording = () => {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-    if (intervalId) { clearInterval(intervalId); intervalId = null; }
-};
-
-const simulateProgress = (setter: (v: number) => void, duration: number) => {
-    let progress = 0;
-    const step = 100 / (duration / 50);
-    progressInterval = window.setInterval(() => {
-        progress = Math.min(progress + step + Math.random() * 2, 95);
-        setter(progress);
-    }, 50);
-};
-
-const autoUpload = async () => {
-    if (!audioBlob.value) return;
-    currentStep.value = 'uploading';
-    simulateProgress((v) => uploadProgress.value = v, 1500);
-
-    const formData = new FormData();
-    formData.append('audio', audioBlob.value, 'recording.webm');
-    formData.append('duration', recordingTime.value.toString());
-    formData.append('anonymous_id', getAnonymousId());
-
-    try {
-        const response = await fetch('/recordings', {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '',
-                'Accept': 'application/json',
-            },
-        });
-        if (!response.ok) throw new Error('Upload failed');
-
-        if (progressInterval) clearInterval(progressInterval);
-        uploadProgress.value = 100;
-
-        const data = await response.json();
-        setTimeout(() => autoProcess(data.id), 300);
-    } catch {
-        if (progressInterval) clearInterval(progressInterval);
-        error.value = t('recording.uploadFailed');
-        currentStep.value = 'idle';
-    }
-};
-
-const autoProcess = async (recordingId: number) => {
-    currentStep.value = 'processing';
-    simulateProgress((v) => processingProgress.value = v, 8000);
-
-    try {
-        const response = await fetch(`/recordings/${recordingId}/process`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '',
-            },
-        });
-        if (!response.ok) throw new Error('Process failed');
-        startPolling(recordingId);
-    } catch {
-        if (progressInterval) clearInterval(progressInterval);
-        error.value = t('recording.processFailed');
-        currentStep.value = 'idle';
-    }
-};
-
-const startPolling = (recordingId: number) => {
-    let attempts = 0;
-    const maxAttempts = 60;
-
-    pollInterval = window.setInterval(async () => {
-        attempts++;
-        if (attempts > maxAttempts) {
-            stopPolling();
-            if (progressInterval) clearInterval(progressInterval);
-            error.value = t('recording.timeout');
-            currentStep.value = 'idle';
-            return;
-        }
-
-        try {
-            const response = await fetch(`/recordings/${recordingId}`, {
-                headers: { 'Accept': 'application/json' },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                if (data.recording.status === 'ready') {
-                    if (progressInterval) clearInterval(progressInterval);
-                    processingProgress.value = 100;
-                    setTimeout(() => {
-                        result.value = data.recording;
-                        currentStep.value = 'ready';
-                    }, 500);
-                    stopPolling();
-                } else if (data.recording.status === 'failed') {
-                    if (progressInterval) clearInterval(progressInterval);
-                    error.value = t('recording.processFailed');
-                    currentStep.value = 'idle';
-                    stopPolling();
-                }
-            }
-        } catch { /* Continue */ }
-    }, 2000);
-};
-
-const stopPolling = () => {
-    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-};
-
-const resetFlow = () => {
-    currentStep.value = 'idle';
-    recordingTime.value = 0;
-    audioBlob.value = null;
-    result.value = null;
-    error.value = null;
-    uploadProgress.value = 0;
-    processingProgress.value = 0;
-};
+const hasRecordings = computed(() => recordingCount.value > 0);
 
 const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString(locale.value === 'ar' ? 'ar-EG' : 'en-US', {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return t('time.justNow');
+    if (diffMins < 60) return t('time.minutesAgo', { count: diffMins });
+    if (diffHours < 24) return t('time.hoursAgo', { count: diffHours });
+    if (diffDays === 1) return t('time.yesterday');
+    if (diffDays < 7) return t('time.daysAgo', { count: diffDays });
+
+    return date.toLocaleDateString(locale.value === 'ar' ? 'ar-EG' : 'en-US', {
+        month: 'short',
+        day: 'numeric'
     });
 };
 
-const formatDuration = (seconds: number | null) => {
-    if (!seconds) return '00:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+const getInitials = (name: string | null | undefined, email: string | null | undefined): string => {
+    if (name) return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    if (email) return email[0].toUpperCase();
+    return '?';
 };
-
-onUnmounted(() => {
-    if (intervalId) clearInterval(intervalId);
-    if (progressInterval) clearInterval(progressInterval);
-    stopPolling();
-});
 </script>
 
 <template>
-    <Head :title="t('recording.title')" />
+    <Head :title="t('app.name')" />
 
-    <AppLayout>
-        <div class="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center px-4 py-8">
-            <!-- Hero (only in idle) -->
-            <div v-if="currentStep === 'idle'" class="text-center mb-12">
-                <h1 class="text-4xl sm:text-5xl font-semibold text-[#0F172A] tracking-tight mb-4">{{ t('app.tagline') }}</h1>
-                <p class="text-lg sm:text-xl text-[#334155] max-w-lg mx-auto leading-relaxed">{{ t('app.description') }}</p>
+    <AppLayout :show-fab="true">
+        <template #header>
+            <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-[#E5E7EB]">
+                <div class="px-4 sm:px-6">
+                    <div class="flex items-center justify-between h-14">
+                        <!-- Logo -->
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                            </div>
+                            <span class="text-lg font-semibold text-[#0F172A]">{{ t('app.name') }}</span>
+                        </div>
 
-                <!-- Auth CTA for non-authenticated users -->
-                <div v-if="!isAuthenticated" class="mt-6 flex items-center justify-center gap-3">
-                    <button
-                        @click="showAuthModal = true"
-                        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#4F46E5] bg-[#EEF2FF] hover:bg-[#E0E7FF] rounded-lg transition-colors"
-                    >
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                        {{ t('auth.signIn') }}
-                    </button>
+                        <!-- Auth -->
+                        <div class="flex items-center gap-2">
+                            <button
+                                v-if="!isAuthenticated"
+                                @click="showAuthModal = true"
+                                class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#4F46E5] hover:bg-[#EEF2FF] rounded-lg transition-colors"
+                            >
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                {{ t('auth.signIn') }}
+                            </button>
+
+                            <Link
+                                v-if="isAuthenticated"
+                                href="/dashboard"
+                                class="flex items-center justify-center w-9 h-9 rounded-full overflow-hidden border-2 border-transparent hover:border-[#4F46E5] transition-colors"
+                            >
+                                <img
+                                    v-if="user?.avatar"
+                                    :src="user.avatar"
+                                    :alt="user.name || ''"
+                                    class="w-full h-full object-cover"
+                                />
+                                <div
+                                    v-else
+                                    class="w-full h-full bg-[#4F46E5] flex items-center justify-center text-white text-sm font-medium"
+                                >
+                                    {{ getInitials(user?.name, user?.email) }}
+                                </div>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            </header>
+        </template>
+
+        <div class="flex-1 px-4 sm:px-6 py-6">
+            <!-- Hero Section -->
+            <div class="text-center mb-8 pt-4">
+                <h1 class="text-2xl sm:text-3xl font-semibold text-[#0F172A] mb-2">{{ t('app.tagline') }}</h1>
+                <p class="text-[#64748B]">{{ t('app.description') }}</p>
+            </div>
+
+            <!-- Notes Section -->
+            <div v-if="isAuthenticated && hasRecordings" class="mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-[#0F172A]">{{ t('notes.recentNotes') }}</h2>
+                    <Link href="/dashboard" class="text-sm font-medium text-[#4F46E5] hover:text-[#4338CA]">
+                        {{ t('notes.viewAll') }}
+                    </Link>
                 </div>
 
-                <!-- Dashboard link for authenticated users -->
-                <div v-else class="mt-6">
-                    <Link
-                        href="/dashboard"
-                        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#4F46E5] bg-[#EEF2FF] hover:bg-[#E0E7FF] rounded-lg transition-colors"
-                    >
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <!-- Placeholder for notes - user should navigate to dashboard -->
+                <div class="bg-white border border-[#E5E7EB] rounded-xl p-4">
+                    <Link href="/dashboard" class="flex items-center gap-3 text-[#334155] hover:text-[#4F46E5] transition-colors">
+                        <div class="w-10 h-10 bg-[#EEF2FF] rounded-lg flex items-center justify-center flex-shrink-0">
+                            <svg class="w-5 h-5 text-[#4F46E5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium">{{ t('notes.youHaveNotes', { count: recordingCount }) }}</p>
+                            <p class="text-sm text-[#64748B]">{{ t('notes.tapToView') }}</p>
+                        </div>
+                        <svg class="w-5 h-5 text-[#64748B] rtl:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                         </svg>
-                        {{ t('nav.myNotes') }}
                     </Link>
                 </div>
             </div>
 
-            <!-- Error -->
-            <div v-if="error" class="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm max-w-md w-full text-center">
-                {{ error }}
-                <button @click="error = null" class="ms-2 underline">×</button>
+            <!-- Empty State -->
+            <div v-else class="text-center py-12">
+                <div class="w-20 h-20 bg-[#EEF2FF] rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <svg class="w-10 h-10 text-[#4F46E5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-[#0F172A] mb-2">{{ t('notes.emptyTitle') }}</h3>
+                <p class="text-[#64748B] max-w-xs mx-auto mb-6">{{ t('notes.emptyDesc') }}</p>
+
+                <!-- Visual hint to FAB -->
+                <div class="flex flex-col items-center text-[#64748B]">
+                    <svg class="w-6 h-6 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                    </svg>
+                    <span class="text-sm mt-2">{{ t('notes.tapMicHint') }}</span>
+                </div>
             </div>
 
-            <!-- IDLE STATE -->
-            <template v-if="currentStep === 'idle'">
-                <div class="relative mb-8">
-                    <button @click="startRecording" class="relative z-10 w-40 h-40 rounded-full flex items-center justify-center bg-[#4F46E5] hover:bg-[#4338CA] hover:scale-105 transition-all duration-300 shadow-lg shadow-[#4F46E5]/30">
-                        <div class="flex flex-col items-center">
-                            <svg class="w-12 h-12 text-white mb-1" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="5" /></svg>
-                            <span class="text-white text-sm font-medium">{{ t('recording.record') }}</span>
-                        </div>
-                    </button>
-                </div>
-                <p class="text-[#64748B] text-center max-w-sm">{{ t('recording.clickToStart') }}</p>
-            </template>
-
-            <!-- RECORDING STATE -->
-            <template v-if="currentStep === 'recording'">
-                <div class="relative mb-8">
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <div class="absolute w-40 h-40 bg-[#EF4444]/20 rounded-full animate-ping"></div>
-                        <div class="absolute w-48 h-48 bg-[#EF4444]/10 rounded-full animate-pulse"></div>
-                    </div>
-                    <button @click="stopRecording" class="relative z-10 w-40 h-40 rounded-full flex items-center justify-center bg-[#EF4444] hover:bg-[#DC2626] transition-all duration-300 shadow-lg shadow-[#EF4444]/30">
-                        <div class="flex flex-col items-center">
-                            <svg class="w-10 h-10 text-white mb-1" fill="currentColor" viewBox="0 0 20 20"><rect x="5" y="5" width="10" height="10" rx="1" /></svg>
-                            <span class="text-white text-sm font-medium">{{ t('recording.stop') }}</span>
-                        </div>
-                    </button>
-                </div>
-                <div class="text-center">
-                    <div class="text-4xl font-semibold text-[#0F172A] tabular-nums mb-2">{{ formattedTime }}</div>
-                    <p class="text-[#64748B]">{{ t('recording.inProgress') }}</p>
-                </div>
-            </template>
-
-            <!-- UPLOADING STATE -->
-            <template v-if="currentStep === 'uploading'">
-                <div class="text-center max-w-md w-full">
-                    <div class="relative mb-8">
-                        <div class="w-32 h-32 mx-auto relative">
-                            <svg class="w-32 h-32 -rotate-90" viewBox="0 0 100 100">
-                                <circle cx="50" cy="50" r="45" fill="none" stroke="#EEF2FF" stroke-width="8"/>
-                                <circle cx="50" cy="50" r="45" fill="none" stroke="#4F46E5" stroke-width="8" stroke-linecap="round"
-                                        :stroke-dasharray="`${uploadProgress * 2.83} 283`" class="transition-all duration-300"/>
-                            </svg>
-                            <div class="absolute inset-0 flex items-center justify-center">
-                                <div class="text-2xl font-bold text-[#4F46E5]">{{ Math.round(uploadProgress) }}%</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex items-center justify-center gap-3 mb-4">
-                        <div class="w-10 h-10 bg-[#EEF2FF] rounded-full flex items-center justify-center">
-                            <svg class="w-5 h-5 text-[#4F46E5] animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                            </svg>
-                        </div>
-                        <h2 class="text-xl font-semibold text-[#0F172A]">{{ t('steps.uploading') }}</h2>
-                    </div>
-                    <p class="text-[#64748B]">{{ t('steps.uploadingDesc') }}</p>
-                </div>
-            </template>
-
-            <!-- PROCESSING STATE -->
-            <template v-if="currentStep === 'processing'">
-                <div class="text-center max-w-md w-full">
-                    <div class="relative mb-8">
-                        <div class="w-32 h-32 mx-auto relative">
-                            <svg class="w-32 h-32 -rotate-90" viewBox="0 0 100 100">
-                                <circle cx="50" cy="50" r="45" fill="none" stroke="#F0FDF4" stroke-width="8"/>
-                                <circle cx="50" cy="50" r="45" fill="none" stroke="#22C55E" stroke-width="8" stroke-linecap="round"
-                                        :stroke-dasharray="`${processingProgress * 2.83} 283`" class="transition-all duration-300"/>
-                            </svg>
-                            <div class="absolute inset-0 flex items-center justify-center">
-                                <div class="text-2xl font-bold text-[#22C55E]">{{ Math.round(processingProgress) }}%</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex items-center justify-center gap-3 mb-4">
-                        <div class="w-10 h-10 bg-[#F0FDF4] rounded-full flex items-center justify-center">
-                            <svg class="w-5 h-5 text-[#22C55E] animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <!-- Features Section -->
+            <div class="mt-8 pt-8 border-t border-[#E5E7EB]">
+                <h3 class="text-sm font-semibold text-[#64748B] uppercase tracking-wide mb-4 text-center">{{ t('features.title') }}</h3>
+                <div class="grid gap-4">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 bg-[#F0FDF4] rounded-lg flex items-center justify-center flex-shrink-0">
+                            <svg class="w-5 h-5 text-[#22C55E]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                             </svg>
                         </div>
-                        <h2 class="text-xl font-semibold text-[#0F172A]">{{ t('steps.processing') }}</h2>
+                        <div>
+                            <p class="font-medium text-[#0F172A]">{{ t('features.ai.title') }}</p>
+                            <p class="text-sm text-[#64748B]">{{ t('features.ai.desc') }}</p>
+                        </div>
                     </div>
-                    <p class="text-[#64748B] mb-6">{{ t('steps.processingDesc') }}</p>
-
-                    <!-- Magic happening animation -->
-                    <div class="flex justify-center gap-1">
-                        <div class="w-2 h-2 bg-[#22C55E] rounded-full animate-bounce" style="animation-delay: 0ms"></div>
-                        <div class="w-2 h-2 bg-[#22C55E] rounded-full animate-bounce" style="animation-delay: 150ms"></div>
-                        <div class="w-2 h-2 bg-[#22C55E] rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 bg-[#EEF2FF] rounded-lg flex items-center justify-center flex-shrink-0">
+                            <svg class="w-5 h-5 text-[#4F46E5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-medium text-[#0F172A]">{{ t('features.actionItems.title') }}</p>
+                            <p class="text-sm text-[#64748B]">{{ t('features.actionItems.desc') }}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 bg-[#FEF3C7] rounded-lg flex items-center justify-center flex-shrink-0">
+                            <svg class="w-5 h-5 text-[#F59E0B]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-medium text-[#0F172A]">{{ t('features.share.title') }}</p>
+                            <p class="text-sm text-[#64748B]">{{ t('features.share.desc') }}</p>
+                        </div>
                     </div>
                 </div>
-            </template>
-
-            <!-- READY STATE - Results -->
-            <template v-if="currentStep === 'ready' && result">
-                <div class="w-full max-w-2xl animate-fade-in">
-                    <!-- Success header -->
-                    <div class="text-center mb-8">
-                        <div class="w-16 h-16 bg-[#F0FDF4] rounded-full flex items-center justify-center mx-auto mb-4 animate-scale-in">
-                            <svg class="w-8 h-8 text-[#22C55E]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                        </div>
-                        <h2 class="text-2xl font-semibold text-[#0F172A]">{{ t('steps.complete') }}</h2>
-                    </div>
-
-                    <!-- Title & Meta -->
-                    <div class="mb-6">
-                        <h1 class="text-2xl font-semibold text-[#0F172A]">{{ result.ai_title || t('notes.untitled') }}</h1>
-                        <div class="flex items-center gap-4 mt-2 text-sm text-[#64748B]">
-                            <span class="flex items-center gap-1"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>{{ formatDuration(result.duration_seconds) }}</span>
-                            <span>{{ formatDate(result.created_at) }}</span>
-                        </div>
-                    </div>
-
-                    <!-- Summary -->
-                    <div class="bg-white border border-[#E5E7EB] rounded-xl p-6 mb-6">
-                        <div class="flex items-center gap-2 mb-4">
-                            <div class="w-8 h-8 bg-[#EEF2FF] rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-[#4F46E5]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></div>
-                            <h2 class="text-lg font-semibold text-[#0F172A]">{{ t('summary.title') }}</h2>
-                        </div>
-                        <p class="text-[#334155] leading-relaxed whitespace-pre-line">{{ result.ai_summary }}</p>
-                    </div>
-
-                    <!-- Action Items -->
-                    <div v-if="result.ai_action_items?.length" class="bg-white border border-[#E5E7EB] rounded-xl p-6 mb-6">
-                        <div class="flex items-center gap-2 mb-4">
-                            <div class="w-8 h-8 bg-[#F0FDF4] rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-[#22C55E]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg></div>
-                            <h2 class="text-lg font-semibold text-[#0F172A]">{{ t('actionItems.title') }}</h2>
-                        </div>
-                        <ul class="space-y-3">
-                            <li v-for="(item, index) in result.ai_action_items" :key="index" class="flex items-start gap-3">
-                                <div class="w-5 h-5 mt-0.5 rounded border-2 border-[#E5E7EB] flex-shrink-0"></div>
-                                <span class="text-[#334155]">{{ item }}</span>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <!-- Actions -->
-                    <div class="flex flex-col sm:flex-row gap-3">
-                        <button @click="resetFlow" class="flex-1 px-5 py-3 text-sm font-medium text-white bg-[#4F46E5] rounded-lg hover:bg-[#4338CA] transition-colors">{{ t('recording.recordAnother') }}</button>
-                        <a :href="`/notes/${result.id}`" class="flex-1 px-5 py-3 text-sm font-medium text-center text-[#334155] bg-white border border-[#E5E7EB] rounded-lg hover:bg-[#F8FAFC] transition-colors">{{ t('recording.viewDetails') }}</a>
-                    </div>
-                </div>
-            </template>
+            </div>
         </div>
 
         <!-- Auth Modal -->
@@ -410,16 +208,3 @@ onUnmounted(() => {
         />
     </AppLayout>
 </template>
-
-<style scoped>
-@keyframes fade-in {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-@keyframes scale-in {
-    from { transform: scale(0); }
-    to { transform: scale(1); }
-}
-.animate-fade-in { animation: fade-in 0.5s ease-out; }
-.animate-scale-in { animation: scale-in 0.3s ease-out; }
-</style>

@@ -6,14 +6,20 @@ use App\Models\Recording;
 use App\Models\Share;
 use App\Services\EventTracker;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ShareController extends Controller
 {
-    public function store(Recording $recording): JsonResponse
+    public function store(Request $request, Recording $recording): JsonResponse
     {
+        // Ensure the authenticated user owns this recording
+        if ($recording->user_id !== auth()->id()) {
+            abort(403, 'Unauthorized');
+        }
+
         $share = Share::firstOrCreate(
             ['recording_id' => $recording->id],
             ['token' => Str::random(32)]

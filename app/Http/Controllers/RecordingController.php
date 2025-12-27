@@ -99,8 +99,33 @@ class RecordingController extends Controller
         }
     }
 
-    public function json(Recording $recording): JsonResponse
+    /**
+     * Check if the current user/anonymous user owns the recording
+     */
+    private function authorizeRecording(Recording $recording, Request $request): bool
     {
+        $userId = auth()->id();
+        $anonymousId = $request->cookie(AnonymousUserResolver::getCookieName());
+
+        // Authenticated user owns the recording
+        if ($userId && $recording->user_id === $userId) {
+            return true;
+        }
+
+        // Anonymous user owns the recording
+        if (!$userId && $anonymousId && $recording->anonymous_id === $anonymousId) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public function json(Request $request, Recording $recording): JsonResponse
+    {
+        if (!$this->authorizeRecording($recording, $request)) {
+            abort(403, 'Unauthorized');
+        }
+
         return response()->json([
             'recording' => $this->formatRecording($recording),
         ]);
@@ -122,9 +147,13 @@ class RecordingController extends Controller
         ];
     }
 
-    public function show(int $id): Response
+    public function show(Request $request, int $id): Response
     {
         $recording = Recording::findOrFail($id);
+
+        if (!$this->authorizeRecording($recording, $request)) {
+            abort(403, 'Unauthorized');
+        }
 
         return Inertia::render('Notes/Show', [
             'recording' => $this->formatRecording($recording),
