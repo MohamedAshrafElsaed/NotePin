@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import { ref, computed, onUnmounted } from 'vue';
 import { useTrans } from '@/composables/useTrans';
 import { useAuth } from '@/composables/useAuth';
 import AppLayout from '@/layouts/AppLayout.vue';
+import AuthModal from '@/components/AuthModal.vue';
 
 const { t, locale } = useTrans();
-const { getAnonymousId } = useAuth();
+const { getAnonymousId, isAuthenticated } = useAuth();
 
 type Step = 'idle' | 'recording' | 'uploading' | 'processing' | 'ready';
 
@@ -16,6 +17,7 @@ const audioBlob = ref<Blob | null>(null);
 const error = ref<string | null>(null);
 const uploadProgress = ref(0);
 const processingProgress = ref(0);
+const showAuthModal = ref(false);
 const result = ref<{
     id: number;
     ai_title: string | null;
@@ -219,6 +221,32 @@ onUnmounted(() => {
             <div v-if="currentStep === 'idle'" class="text-center mb-12">
                 <h1 class="text-4xl sm:text-5xl font-semibold text-[#0F172A] tracking-tight mb-4">{{ t('app.tagline') }}</h1>
                 <p class="text-lg sm:text-xl text-[#334155] max-w-lg mx-auto leading-relaxed">{{ t('app.description') }}</p>
+
+                <!-- Auth CTA for non-authenticated users -->
+                <div v-if="!isAuthenticated" class="mt-6 flex items-center justify-center gap-3">
+                    <button
+                        @click="showAuthModal = true"
+                        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#4F46E5] bg-[#EEF2FF] hover:bg-[#E0E7FF] rounded-lg transition-colors"
+                    >
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        {{ t('auth.signIn') }}
+                    </button>
+                </div>
+
+                <!-- Dashboard link for authenticated users -->
+                <div v-else class="mt-6">
+                    <Link
+                        href="/dashboard"
+                        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#4F46E5] bg-[#EEF2FF] hover:bg-[#E0E7FF] rounded-lg transition-colors"
+                    >
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        {{ t('nav.myNotes') }}
+                    </Link>
+                </div>
             </div>
 
             <!-- Error -->
@@ -372,6 +400,14 @@ onUnmounted(() => {
                 </div>
             </template>
         </div>
+
+        <!-- Auth Modal -->
+        <AuthModal
+            :show="showAuthModal"
+            action="login"
+            redirect-to="/dashboard"
+            @close="showAuthModal = false"
+        />
     </AppLayout>
 </template>
 
