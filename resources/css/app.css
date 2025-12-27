@@ -1,0 +1,536 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+@theme inline {
+    /* Typography */
+    --font-sans: 'Inter', 'Noto Sans Arabic', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-arabic: 'Noto Sans Arabic', 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+    /* NotePin Brand Colors */
+    --color-primary: #4F46E5;
+    --color-primary-hover: #4338CA;
+    --color-primary-light: #EEF2FF;
+    --color-secondary: #22C55E;
+    --color-secondary-hover: #16A34A;
+    --color-secondary-light: #F0FDF4;
+
+    /* Backgrounds */
+    --color-background: #F8FAFC;
+    --color-surface: #FFFFFF;
+
+    /* Text */
+    --color-text-primary: #0F172A;
+    --color-text-secondary: #334155;
+    --color-text-muted: #64748B;
+
+    /* Borders & Dividers */
+    --color-border: #E5E7EB;
+    --color-border-light: #F1F5F9;
+
+    /* States */
+    --color-success: #22C55E;
+    --color-error: #EF4444;
+    --color-warning: #F59E0B;
+
+    /* Spacing */
+    --radius-sm: 0.375rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+    --radius-2xl: 1.5rem;
+    --radius-full: 9999px;
+}
+
+/* ========================================
+   BASE STYLES
+   ======================================== */
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========================================
+   RTL SUPPORT
+   ======================================== */
+
+/* RTL Base */
+[dir="rtl"] {
+    font-family: var(--font-arabic);
+    text-align: right;
+}
+
+[dir="rtl"] body {
+    font-family: var(--font-arabic);
+}
+
+/* Better Arabic line height */
+[dir="rtl"] p,
+[dir="rtl"] span,
+[dir="rtl"] li,
+[dir="rtl"] label {
+    line-height: 1.8;
+}
+
+/* Flip directional icons */
+[dir="rtl"] .rtl\:rotate-180 {
+    transform: rotate(180deg);
+}
+
+[dir="rtl"] .rtl\:flip {
+    transform: scaleX(-1);
+}
+
+/* Logical Properties - Padding */
+.ps-0 { padding-inline-start: 0; }
+.ps-1 { padding-inline-start: 0.25rem; }
+.ps-2 { padding-inline-start: 0.5rem; }
+.ps-3 { padding-inline-start: 0.75rem; }
+.ps-4 { padding-inline-start: 1rem; }
+.ps-5 { padding-inline-start: 1.25rem; }
+.ps-6 { padding-inline-start: 1.5rem; }
+.ps-8 { padding-inline-start: 2rem; }
+.ps-10 { padding-inline-start: 2.5rem; }
+.ps-12 { padding-inline-start: 3rem; }
+
+.pe-0 { padding-inline-end: 0; }
+.pe-1 { padding-inline-end: 0.25rem; }
+.pe-2 { padding-inline-end: 0.5rem; }
+.pe-3 { padding-inline-end: 0.75rem; }
+.pe-4 { padding-inline-end: 1rem; }
+.pe-5 { padding-inline-end: 1.25rem; }
+.pe-6 { padding-inline-end: 1.5rem; }
+.pe-8 { padding-inline-end: 2rem; }
+.pe-10 { padding-inline-end: 2.5rem; }
+.pe-12 { padding-inline-end: 3rem; }
+
+/* Logical Properties - Margin */
+.ms-0 { margin-inline-start: 0; }
+.ms-1 { margin-inline-start: 0.25rem; }
+.ms-2 { margin-inline-start: 0.5rem; }
+.ms-3 { margin-inline-start: 0.75rem; }
+.ms-4 { margin-inline-start: 1rem; }
+.ms-auto { margin-inline-start: auto; }
+
+.me-0 { margin-inline-end: 0; }
+.me-1 { margin-inline-end: 0.25rem; }
+.me-2 { margin-inline-end: 0.5rem; }
+.me-3 { margin-inline-end: 0.75rem; }
+.me-4 { margin-inline-end: 1rem; }
+.me-auto { margin-inline-end: auto; }
+
+/* Logical Properties - Positioning */
+.start-0 { inset-inline-start: 0; }
+.start-1 { inset-inline-start: 0.25rem; }
+.start-2 { inset-inline-start: 0.5rem; }
+.start-3 { inset-inline-start: 0.75rem; }
+.start-4 { inset-inline-start: 1rem; }
+
+.end-0 { inset-inline-end: 0; }
+.end-1 { inset-inline-end: 0.25rem; }
+.end-2 { inset-inline-end: 0.5rem; }
+.end-3 { inset-inline-end: 0.75rem; }
+.end-4 { inset-inline-end: 1rem; }
+
+/* Logical Properties - Text Alignment */
+.text-start { text-align: start; }
+.text-end { text-align: end; }
+
+/* Logical Properties - Border Radius */
+.rounded-s { border-start-start-radius: 0.25rem; border-end-start-radius: 0.25rem; }
+.rounded-e { border-start-end-radius: 0.25rem; border-end-end-radius: 0.25rem; }
+.rounded-s-lg { border-start-start-radius: 0.5rem; border-end-start-radius: 0.5rem; }
+.rounded-e-lg { border-start-end-radius: 0.5rem; border-end-end-radius: 0.5rem; }
+
+/* Logical Properties - Borders */
+.border-s { border-inline-start-width: 1px; }
+.border-e { border-inline-end-width: 1px; }
+.border-s-2 { border-inline-start-width: 2px; }
+.border-e-2 { border-inline-end-width: 2px; }
+
+/* Fix input text alignment in RTL */
+[dir="rtl"] input[type="text"],
+[dir="rtl"] input[type="email"],
+[dir="rtl"] input[type="password"],
+[dir="rtl"] input[type="search"],
+[dir="rtl"] input[type="tel"],
+[dir="rtl"] input[type="url"],
+[dir="rtl"] textarea {
+    text-align: right;
+}
+
+/* Keep numbers LTR */
+[dir="rtl"] input[type="number"],
+[dir="rtl"] input[type="tel"] {
+    direction: ltr;
+    text-align: right;
+}
+
+/* Keep audio/video controls LTR */
+[dir="rtl"] audio,
+[dir="rtl"] video {
+    direction: ltr;
+}
+
+/* Fix flex gap in RTL - space-x classes */
+[dir="rtl"] .space-x-1 > :not([hidden]) ~ :not([hidden]),
+[dir="rtl"] .space-x-2 > :not([hidden]) ~ :not([hidden]),
+[dir="rtl"] .space-x-3 > :not([hidden]) ~ :not([hidden]),
+[dir="rtl"] .space-x-4 > :not([hidden]) ~ :not([hidden]),
+[dir="rtl"] .space-x-5 > :not([hidden]) ~ :not([hidden]),
+[dir="rtl"] .space-x-6 > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-x-reverse: 1;
+}
+
+/* ========================================
+   TYPOGRAPHY UTILITIES
+   ======================================== */
+
+.heading-1 {
+    font-size: 2.25rem;
+    line-height: 2.5rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+}
+
+.heading-2 {
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+}
+
+.heading-3 {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+    font-weight: 600;
+}
+
+.body-large {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    font-weight: 400;
+}
+
+.body-default {
+    font-size: 1rem;
+    line-height: 1.625rem;
+    font-weight: 400;
+}
+
+.body-small {
+    font-size: 0.875rem;
+    line-height: 1.5rem;
+    font-weight: 400;
+}
+
+.label {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Arabic-specific typography adjustments */
+[dir="rtl"] .heading-1,
+[dir="rtl"] .heading-2,
+[dir="rtl"] .heading-3 {
+    letter-spacing: 0;
+}
+
+/* ========================================
+   BUTTON STYLES
+   ======================================== */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    border-radius: var(--radius-lg);
+    transition: all 150ms ease;
+    cursor: pointer;
+    outline: none;
+}
+
+.btn:focus-visible {
+    ring: 2px;
+    ring-offset: 2px;
+    ring-color: var(--color-primary);
+}
+
+.btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+    padding: 0.75rem 1.5rem;
+}
+
+.btn-primary:hover {
+    background-color: var(--color-primary-hover);
+}
+
+.btn-secondary {
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+    padding: 0.75rem 1.5rem;
+}
+
+.btn-secondary:hover {
+    background-color: var(--color-background);
+}
+
+.btn-ghost {
+    background-color: transparent;
+    color: var(--color-text-secondary);
+    padding: 0.5rem 1rem;
+}
+
+.btn-ghost:hover {
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+}
+
+/* ========================================
+   CARD STYLES
+   ======================================== */
+
+.card {
+    background-color: var(--color-surface);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-border);
+}
+
+.card-padding {
+    padding: 1.5rem;
+}
+
+/* ========================================
+   INPUT STYLES
+   ======================================== */
+
+.input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    font-size: 1rem;
+    line-height: 1.5;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.input::placeholder {
+    color: var(--color-text-muted);
+}
+
+/* ========================================
+   CHECKBOX STYLES
+   ======================================== */
+
+.checkbox {
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    appearance: none;
+    cursor: pointer;
+    transition: all 150ms ease;
+}
+
+.checkbox:checked {
+    background-color: var(--color-secondary);
+    border-color: var(--color-secondary);
+    background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+@keyframes pulse-ring {
+    0% {
+        transform: scale(1);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+.record-btn-ring {
+    animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes ping {
+    75%, 100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+.animate-ping {
+    animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ========================================
+   PAGE TRANSITIONS
+   ======================================== */
+
+.page-enter-active,
+.page-leave-active {
+    transition: opacity 200ms ease;
+}
+
+.page-enter-from,
+.page-leave-to {
+    opacity: 0;
+}
+
+/* Fade transition */
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 150ms ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+}
+
+/* Slide transition */
+.slide-enter-active,
+.slide-leave-active {
+    transition: transform 200ms ease, opacity 200ms ease;
+}
+
+.slide-enter-from {
+    transform: translateY(-10px);
+    opacity: 0;
+}
+
+.slide-leave-to {
+    transform: translateY(10px);
+    opacity: 0;
+}
+
+/* ========================================
+   SCROLLBAR STYLES
+   ======================================== */
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Line clamp */
+.line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Tabular numbers for timers */
+.tabular-nums {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Focus ring utility */
+.focus-ring:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+/* Truncate text */
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ========================================
+   RESPONSIVE UTILITIES
+   ======================================== */
+
+/* Hide scrollbar but allow scrolling */
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+/* Safe area padding for mobile devices */
+.safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-top {
+    padding-top: env(safe-area-inset-top);
+}
