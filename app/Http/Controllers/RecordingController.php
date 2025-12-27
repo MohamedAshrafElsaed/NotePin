@@ -26,8 +26,8 @@ class RecordingController extends Controller
 
         try {
             $request->validate([
-                'audio' => 'required|file|mimes:webm,mp3,wav,ogg,m4a|max:51200',
-                'duration' => 'nullable|integer|min:0',
+                'audio' => 'required|file|mimetypes:audio/*,video/webm,video/mp4|max:102400',
+                'duration' => 'nullable|integer|min:0|max:3600',
                 'anonymous_id' => 'nullable|string|max:64',
             ]);
 
