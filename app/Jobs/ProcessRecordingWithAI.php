@@ -97,6 +97,8 @@ class ProcessRecordingWithAI implements ShouldQueue
             Input: a raw transcript from a voice note or meeting. The transcript may be:
             - Egyptian Arabic (عامية مصرية)
             - Arabic mixed with English terms (e.g., "deadline", "deploy", "meeting")
+            - English
+            - Must detect the Language and response based on it
             - Noisy, with fillers and repeated words
             Task:
             Convert the transcript into a clean, structured note with corrected language and clear formatting.
