@@ -51,10 +51,15 @@ const isReady = computed(() => recording.value?.status === 'ready');
 const isFailed = computed(() => recording.value?.status === 'failed');
 const isProcessing = computed(() => recording.value?.status === 'processing');
 
+// Hide FAB during processing
+const showFab = computed(() => !isProcessing.value);
+
 // Get full action items with metadata if available
 const actionItemsFull = computed<ActionItemFull[]>(() => {
     const full = recording.value?.ai_meta?.action_items_full;
-    if (full && Array.isArray(full)) return full;
+    if (full && Array.isArray(full)) {
+        return full;
+    }
 
     // Fallback to simple strings
     const simple = recording.value?.ai_action_items;
@@ -79,14 +84,18 @@ const statusConfig = computed(() => ({
 const currentStatus = computed(() => statusConfig.value[recording.value?.status as keyof typeof statusConfig.value] || statusConfig.value.processing);
 
 const shareMessage = computed(() => {
-    if (!recording.value || !shareUrl.value) return '';
+    if (!recording.value || !shareUrl.value) {
+        return '';
+    }
     const title = recording.value.ai_title || t('notes.untitled');
     const summary = recording.value.ai_summary
         ? recording.value.ai_summary.slice(0, 150) + (recording.value.ai_summary.length > 150 ? '...' : '')
         : '';
     const items = actionItemsFull.value.slice(0, 5);
     let msg = `📝 *${title}*\n\n`;
-    if (summary) msg += `${summary}\n\n`;
+    if (summary) {
+        msg += `${summary}\n\n`;
+    }
     if (items.length > 0) {
         msg += `✅ Action Items:\n`;
         items.forEach((item) => {
@@ -99,12 +108,16 @@ const shareMessage = computed(() => {
 });
 
 const whatsAppUrl = computed(() => {
-    if (!shareMessage.value) return '';
+    if (!shareMessage.value) {
+        return '';
+    }
     return `https://wa.me/?text=${encodeURIComponent(shareMessage.value)}`;
 });
 
 const startPolling = () => {
-    if (pollInterval.value) return;
+    if (pollInterval.value) {
+        return;
+    }
 
     let attempts = 0;
     const maxAttempts = 120;
@@ -142,7 +155,9 @@ const stopPolling = () => {
 };
 
 const retryProcessing = async () => {
-    if (!recording.value || recording.value.status !== 'failed') return;
+    if (!recording.value || recording.value.status !== 'failed') {
+        return;
+    }
 
     try {
         const response = await fetch(`/recordings/${recording.value.id}/process`, {
@@ -164,8 +179,12 @@ const retryProcessing = async () => {
 };
 
 const createShare = async (): Promise<string | null> => {
-    if (!recording.value) return null;
-    if (shareUrl.value) return shareUrl.value;
+    if (!recording.value) {
+        return null;
+    }
+    if (shareUrl.value) {
+        return shareUrl.value;
+    }
 
     isSharing.value = true;
     try {
@@ -178,7 +197,9 @@ const createShare = async (): Promise<string | null> => {
             },
         });
 
-        if (!response.ok) throw new Error('Failed to create share');
+        if (!response.ok) {
+            throw new Error('Failed to create share');
+        }
 
         const data = await response.json();
         shareUrl.value = data.url;
@@ -197,7 +218,9 @@ const handleShareClick = async () => {
     }
 
     const url = await createShare();
-    if (!url) return;
+    if (!url) {
+        return;
+    }
 
     if (navigator.share) {
         const title = recording.value?.ai_title || t('notes.untitled');
@@ -223,7 +246,9 @@ const handleShareClick = async () => {
 };
 
 const copyShareUrl = async () => {
-    if (!shareUrl.value) return;
+    if (!shareUrl.value) {
+        return;
+    }
     try {
         await navigator.clipboard.writeText(shareUrl.value);
         copied.value = true;
@@ -277,19 +302,27 @@ onUnmounted(() => {
 });
 
 const formatDuration = (seconds: number | null | undefined) => {
-    if (!seconds) return '0:00';
+    if (!seconds) {
+        return '0:00';
+    }
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
 const formatDate = (dateStr: string | undefined) => {
-    if (!dateStr) return '';
+    if (!dateStr) {
+        return '';
+    }
     const date = new Date(dateStr);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000);
-    if (diffDays === 0) return t('time.today');
-    if (diffDays === 1) return t('time.yesterday');
+    if (diffDays === 0) {
+        return t('time.today');
+    }
+    if (diffDays === 1) {
+        return t('time.yesterday');
+    }
     return date.toLocaleDateString(locale.value === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' });
 };
 </script>
@@ -297,7 +330,7 @@ const formatDate = (dateStr: string | undefined) => {
 <template>
     <Head :title="recording?.ai_title || t('notes.untitled')" />
 
-    <AppLayout :show-fab="true">
+    <AppLayout :show-fab="showFab">
         <template #header>
             <header class="sticky top-0 z-40 border-b border-[#E5E7EB] bg-white/95 backdrop-blur-sm">
                 <div class="px-4 sm:px-6">

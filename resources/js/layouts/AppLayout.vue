@@ -32,7 +32,6 @@ const pauseSupported = ref(true);
 
 // Text input state
 const showTextInput = ref(false);
-const showInputMenu = ref(false);
 
 let mediaRecorder: MediaRecorder | null = null;
 let audioChunks: Blob[] = [];
@@ -42,6 +41,7 @@ let stream: MediaStream | null = null;
 
 const isRecording = computed(() => state.value === 'recording' || state.value === 'paused');
 const isActive = computed(() => state.value !== 'idle');
+const isBusy = computed(() => state.value !== 'idle' || showTextInput.value);
 const recordedDuration = computed(() => MAX_DURATION - remainingTime.value);
 
 const formattedCountdown = computed(() => {
@@ -57,17 +57,7 @@ const formattedRecorded = computed(() => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 });
 
-// Toggle input menu
-const toggleInputMenu = () => {
-    showInputMenu.value = !showInputMenu.value;
-};
-
-const closeInputMenu = () => {
-    showInputMenu.value = false;
-};
-
 const openTextInput = () => {
-    showInputMenu.value = false;
     showTextInput.value = true;
 };
 
@@ -75,10 +65,8 @@ const closeTextInput = () => {
     showTextInput.value = false;
 };
 
-// Start recording immediately on FAB tap
+// Start recording immediately on Mic tap
 const startRecording = async () => {
-    showInputMenu.value = false;
-
     try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
@@ -122,7 +110,8 @@ const startRecording = async () => {
 };
 
 const startCountdown = () => {
-    countdownInterval = setInterval(() => {
+    remainingTime.value = MAX_DURATION;
+    countdownInterval = window.setInterval(() => {
         if (state.value === 'recording') {
             remainingTime.value--;
             if (remainingTime.value <= 0) {
@@ -133,16 +122,14 @@ const startCountdown = () => {
 };
 
 const pauseRecording = () => {
-    if (!mediaRecorder || !pauseSupported.value) return;
-    if (mediaRecorder.state === 'recording') {
+    if (mediaRecorder && mediaRecorder.state === 'recording' && pauseSupported.value) {
         mediaRecorder.pause();
         state.value = 'paused';
     }
 };
 
 const resumeRecording = () => {
-    if (!mediaRecorder || !pauseSupported.value) return;
-    if (mediaRecorder.state === 'paused') {
+    if (mediaRecorder && mediaRecorder.state === 'paused') {
         mediaRecorder.resume();
         state.value = 'recording';
     }
@@ -155,6 +142,10 @@ const stopRecording = () => {
     }
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
+    }
+    if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        stream = null;
     }
 };
 
@@ -172,21 +163,26 @@ const cleanup = () => {
         clearInterval(progressInterval);
         progressInterval = null;
     }
-    if (audioUrl.value) {
-        URL.revokeObjectURL(audioUrl.value);
-    }
     if (stream) {
         stream.getTracks().forEach((track) => track.stop());
         stream = null;
     }
+    if (audioUrl.value) {
+        URL.revokeObjectURL(audioUrl.value);
+        audioUrl.value = null;
+    }
     audioBlob.value = null;
-    audioUrl.value = null;
     remainingTime.value = MAX_DURATION;
+    uploadProgress.value = 0;
     error.value = null;
+    mediaRecorder = null;
+    audioChunks = [];
 };
 
 const uploadRecording = async () => {
-    if (!audioBlob.value) return;
+    if (!audioBlob.value) {
+        return;
+    }
 
     state.value = 'uploading';
     uploadProgress.value = 0;
@@ -207,11 +203,13 @@ const uploadRecording = async () => {
     }, 200);
 
     try {
+        const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '';
         const response = await fetch('/recordings', {
             method: 'POST',
             body: formData,
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken,
                 Accept: 'application/json',
             },
             credentials: 'same-origin',
@@ -428,77 +426,32 @@ onUnmounted(() => {
             <TextInputPanel v-if="showTextInput" @close="closeTextInput" />
         </Transition>
 
-        <!-- Input Menu Backdrop -->
-        <Transition
-            enter-active-class="transition ease-out duration-150"
-            enter-from-class="opacity-0"
-            enter-to-class="opacity-100"
-            leave-active-class="transition ease-in duration-100"
-            leave-from-class="opacity-100"
-            leave-to-class="opacity-0"
-        >
-            <div v-if="showInputMenu" class="fixed inset-0 z-40 bg-black/20" @click="closeInputMenu"></div>
-        </Transition>
+        <!-- Floating Icon Buttons (only when idle and not in text input) -->
+        <div v-if="showFab && !isBusy" class="fab-container">
+            <!-- Text Button (secondary) -->
+            <button @click="openTextInput" class="fab-secondary" :aria-label="t('textInput.title')">
+                <svg class="h-5 w-5 text-[#F59E0B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
+                </svg>
+                <span class="fab-label">{{ t('textInput.menuText').split(' ')[0] }}</span>
+            </button>
 
-        <!-- Input Menu -->
-        <Transition
-            enter-active-class="transition ease-out duration-200"
-            enter-from-class="opacity-0 translate-y-4 scale-95"
-            enter-to-class="opacity-100 translate-y-0 scale-100"
-            leave-active-class="transition ease-in duration-150"
-            leave-from-class="opacity-100 translate-y-0 scale-100"
-            leave-to-class="opacity-0 translate-y-4 scale-95"
-        >
-            <div v-if="showInputMenu" class="input-menu">
-                <button @click="startRecording" class="flex w-full items-center gap-3 rounded-t-xl px-4 py-3 transition-colors hover:bg-[#F8FAFC]">
-                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[#EEF2FF]">
-                        <svg class="h-5 w-5 text-[#4F46E5]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                            />
-                        </svg>
-                    </div>
-                    <div class="text-start">
-                        <p class="text-sm font-medium text-[#0F172A]">{{ t('textInput.menuVoice') }}</p>
-                        <p class="text-xs text-[#64748B]">{{ t('textInput.menuVoiceDesc') }}</p>
-                    </div>
-                </button>
-                <div class="mx-4 h-px bg-[#E5E7EB]"></div>
-                <button @click="openTextInput" class="flex w-full items-center gap-3 rounded-b-xl px-4 py-3 transition-colors hover:bg-[#F8FAFC]">
-                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[#FEF3C7]">
-                        <svg class="h-5 w-5 text-[#F59E0B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                            />
-                        </svg>
-                    </div>
-                    <div class="text-start">
-                        <p class="text-sm font-medium text-[#0F172A]">{{ t('textInput.menuText') }}</p>
-                        <p class="text-xs text-[#64748B]">{{ t('textInput.menuTextDesc') }}</p>
-                    </div>
-                </button>
-            </div>
-        </Transition>
-
-        <!-- Floating Add Button (only when idle) -->
-        <button
-            v-if="showFab && state === 'idle' && !showTextInput"
-            @click="toggleInputMenu"
-            class="fab-mic"
-            :class="{ 'fab-mic-active': showInputMenu }"
-            :aria-label="t('recording.record')"
-        >
-            <svg v-if="showInputMenu" class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            <svg v-else class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-        </button>
+            <!-- Mic Button (primary) -->
+            <button @click="startRecording" class="fab-mic" :aria-label="t('recording.record')">
+                <svg class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                    />
+                </svg>
+                <span class="fab-label-primary">{{ t('recording.record') }}</span>
+            </button>
+        </div>
     </div>
 </template>
 
@@ -521,17 +474,24 @@ onUnmounted(() => {
     padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
-.fab-mic {
+.fab-container {
     position: fixed;
     bottom: calc(24px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     z-index: 50;
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+}
+
+.fab-mic {
     width: 64px;
     height: 64px;
     border-radius: 50%;
     background-color: #4f46e5;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);
@@ -545,29 +505,84 @@ onUnmounted(() => {
 }
 
 .fab-mic:active {
-    transform: translateX(-50%) scale(0.95);
+    transform: scale(0.95);
 }
 
-.fab-mic-active {
-    background-color: #64748b;
+.fab-secondary {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: #fef3c7;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition:
+        transform 0.15s ease,
+        background-color 0.15s ease;
 }
 
-.fab-mic-active:hover {
-    background-color: #475569;
+.fab-secondary:hover {
+    background-color: #fde68a;
 }
 
-.input-menu {
-    position: fixed;
-    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 50;
-    width: calc(100% - 32px);
-    max-width: 320px;
-    background-color: white;
-    border-radius: 16px;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
-    overflow: hidden;
+.fab-secondary:active {
+    transform: scale(0.95);
+}
+
+.fab-label {
+    display: none;
+}
+
+.fab-label-primary {
+    display: none;
+}
+
+@media (min-width: 640px) {
+    .fab-container {
+        gap: 12px;
+    }
+
+    .fab-mic {
+        width: auto;
+        height: auto;
+        padding: 14px 24px;
+        border-radius: 9999px;
+        flex-direction: row;
+        gap: 8px;
+    }
+
+    .fab-mic:active {
+        transform: scale(0.98);
+    }
+
+    .fab-label-primary {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: white;
+    }
+
+    .fab-secondary {
+        width: auto;
+        height: auto;
+        padding: 12px 16px;
+        border-radius: 9999px;
+        flex-direction: row;
+        gap: 6px;
+    }
+
+    .fab-secondary:active {
+        transform: scale(0.98);
+    }
+
+    .fab-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: #92400e;
+    }
 }
 
 .recorder-overlay {

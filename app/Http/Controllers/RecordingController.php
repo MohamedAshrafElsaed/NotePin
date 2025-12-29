@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreActionStateRequest;
+use App\Http\Requests\StoreNoteOverrideRequest;
 use App\Jobs\ProcessRecordingWithAI;
 use App\Models\Recording;
 use App\Services\AnonymousUserResolver;
@@ -50,10 +52,10 @@ class RecordingController extends Controller
             $anonymousId = null;
 
             if (!$userId) {
-                $anonymousId = $request->input('anonymous_id') ?: AnonymousUserResolver::resolve($request);
+                $anonymousId = $request->input('anonymous_id')
+                    ?: AnonymousUserResolver::resolve($request);
             }
 
-            // Create with processing status - auto-start AI processing
             $recording = Recording::create([
                 'user_id' => $userId,
                 'anonymous_id' => $anonymousId,
@@ -73,7 +75,6 @@ class RecordingController extends Controller
                 ],
             ]);
 
-            // Auto-dispatch AI processing job
             EventTracker::track('ai_processing_started', [
                 'recording_id' => $recording->id,
                 'user_id' => $userId,
@@ -114,27 +115,6 @@ class RecordingController extends Controller
         }
     }
 
-    /**
-     * Check if the current user/anonymous user owns the recording
-     */
-    private function authorizeRecording(Recording $recording, Request $request): bool
-    {
-        $userId = auth()->id();
-        $anonymousId = $request->cookie(AnonymousUserResolver::getCookieName());
-
-        // Authenticated user owns the recording
-        if ($userId && $recording->user_id === $userId) {
-            return true;
-        }
-
-        // Anonymous user owns the recording
-        if (!$userId && $anonymousId && $recording->anonymous_id === $anonymousId) {
-            return true;
-        }
-
-        return false;
-    }
-
     public function json(Request $request, Recording $recording): JsonResponse
     {
         if (!$this->authorizeRecording($recording, $request)) {
@@ -146,6 +126,25 @@ class RecordingController extends Controller
         ]);
     }
 
+    private function authorizeRecording(Recording $recording, Request $request): bool
+    {
+        $userId = auth()->id();
+        $anonymousId = $request->cookie(AnonymousUserResolver::getCookieName());
+
+        if ($userId && $recording->user_id === $userId) {
+            return true;
+        }
+
+        if (!$userId && $anonymousId && $recording->anonymous_id === $anonymousId) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function formatRecording(Recording $recording): array
     {
         return [
@@ -159,12 +158,20 @@ class RecordingController extends Controller
             'ai_action_items' => $recording->ai_action_items,
             'ai_meta' => $recording->ai_meta,
             'created_at' => $recording->created_at->toISOString(),
+            'actions' => $recording->actions->map(fn($a) => [
+                'id' => $a->id,
+                'type' => $a->type,
+                'source_items' => $a->source_items,
+                'payload' => $a->payload,
+                'status' => $a->status,
+                'created_at' => $a->created_at->toISOString(),
+            ])->toArray(),
         ];
     }
 
     public function show(Request $request, int $id): Response
     {
-        $recording = Recording::findOrFail($id);
+        $recording = Recording::with('actions')->findOrFail($id);
 
         if (!$this->authorizeRecording($recording, $request)) {
             abort(403, 'Unauthorized');
@@ -172,6 +179,49 @@ class RecordingController extends Controller
 
         return Inertia::render('Notes/Show', [
             'recording' => $this->formatRecording($recording),
+        ]);
+    }
+
+    public function updateOverride(StoreNoteOverrideRequest $request, int $id): JsonResponse
+    {
+        $recording = Recording::findOrFail($id);
+
+        if (!$this->authorizeRecording($recording, $request)) {
+            abort(403, 'Unauthorized');
+        }
+
+        $meta = $recording->ai_meta ?? [];
+        $meta['user_overrides'] = [
+            'title' => $request->input('title'),
+            'summary' => $request->input('summary'),
+            'action_items' => $request->input('action_items'),
+        ];
+        $meta['edited_at'] = now()->toISOString();
+
+        $recording->update(['ai_meta' => $meta]);
+
+        return response()->json([
+            'success' => true,
+            'ai_meta' => $recording->ai_meta,
+        ]);
+    }
+
+    public function updateActionState(StoreActionStateRequest $request, int $id): JsonResponse
+    {
+        $recording = Recording::findOrFail($id);
+
+        if (!$this->authorizeRecording($recording, $request)) {
+            abort(403, 'Unauthorized');
+        }
+
+        $meta = $recording->ai_meta ?? [];
+        $meta['action_state'] = $request->input('state');
+
+        $recording->update(['ai_meta' => $meta]);
+
+        return response()->json([
+            'success' => true,
+            'ai_meta' => $recording->ai_meta,
         ]);
     }
 }

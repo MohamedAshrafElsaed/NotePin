@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\EmailAuthController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\NoteActionController;
 use App\Http\Controllers\NotesController;
 use App\Http\Controllers\RecordingController;
 use App\Http\Controllers\RecordingProcessController;
@@ -57,6 +58,15 @@ Route::post('/recordings/{recording}/share', [ShareController::class, 'store'])
 
 // Notes show - accessible for viewing own recordings
 Route::get('/notes/{id}', [RecordingController::class, 'show'])->name('notes.show');
+
+// Note editing endpoints (owner only)
+Route::patch('/notes/{id}/override', [RecordingController::class, 'updateOverride'])->name('notes.override');
+Route::patch('/notes/{id}/action-state', [RecordingController::class, 'updateActionState'])->name('notes.action-state');
+
+// Note actions (tasks, meetings, reminders)
+Route::post('/notes/{id}/actions', [NoteActionController::class, 'store'])->name('notes.actions.store');
+Route::patch('/notes/{id}/actions/{actionId}', [NoteActionController::class, 'update'])->name('notes.actions.update');
+Route::delete('/notes/{id}/actions/{actionId}', [NoteActionController::class, 'destroy'])->name('notes.actions.destroy');
 
 // Public Share
 Route::get('/share/{token}', [ShareController::class, 'show'])->name('share.show');
