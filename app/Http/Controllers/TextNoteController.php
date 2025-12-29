@@ -87,6 +87,7 @@ class TextNoteController extends Controller
                 'user_id' => $userId,
                 'anonymous_id' => $anonymousId,
                 'status' => 'processing',
+                'audio_path' => 'text',
                 'transcript' => $text,
                 'ai_meta' => [
                     'source' => 'text',
