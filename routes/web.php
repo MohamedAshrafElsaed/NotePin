@@ -9,6 +9,7 @@ use App\Http\Controllers\NotesController;
 use App\Http\Controllers\RecordingController;
 use App\Http\Controllers\RecordingProcessController;
 use App\Http\Controllers\ShareController;
+use App\Http\Controllers\TextNoteController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -41,10 +42,13 @@ Route::post('/logout', function () {
     return redirect('/');
 })->name('logout');
 
-// Recordings - public upload
+// Recordings - public upload (audio)
 Route::post('/recordings', [RecordingController::class, 'store'])->name('recordings.store');
 Route::get('/recordings/{recording}', [RecordingController::class, 'json'])->name('recordings.json');
 Route::post('/recordings/{recording}/process', [RecordingProcessController::class, 'store'])->name('recordings.process');
+
+// Text notes - public (pasted text, auto-processed)
+Route::post('/notes/text', [TextNoteController::class, 'store'])->name('notes.text.store');
 
 // Share - requires auth
 Route::post('/recordings/{recording}/share', [ShareController::class, 'store'])
