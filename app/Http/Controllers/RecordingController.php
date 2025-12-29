@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessRecordingWithAI;
 use App\Models\Recording;
 use App\Services\AnonymousUserResolver;
 use App\Services\EventTracker;
@@ -52,10 +53,11 @@ class RecordingController extends Controller
                 $anonymousId = $request->input('anonymous_id') ?: AnonymousUserResolver::resolve($request);
             }
 
+            // Create with processing status - auto-start AI processing
             $recording = Recording::create([
                 'user_id' => $userId,
                 'anonymous_id' => $anonymousId,
-                'status' => 'uploaded',
+                'status' => 'processing',
                 'audio_path' => $path,
                 'duration_seconds' => $request->input('duration'),
             ]);
@@ -70,6 +72,19 @@ class RecordingController extends Controller
                     'anonymous' => !$userId,
                 ],
             ]);
+
+            // Auto-dispatch AI processing job
+            EventTracker::track('ai_processing_started', [
+                'recording_id' => $recording->id,
+                'user_id' => $userId,
+                'metadata' => [
+                    'auto_started' => true,
+                ],
+            ]);
+
+            ProcessRecordingWithAI::dispatch($recording->id);
+
+            Log::info('AI processing job dispatched', ['recording_id' => $recording->id]);
 
             $response = response()->json([
                 'id' => $recording->id,

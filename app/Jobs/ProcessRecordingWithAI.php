@@ -10,12 +10,16 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use OpenAI\Laravel\Facades\OpenAI;
 
 class ProcessRecordingWithAI implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public int $tries = 3;
+    public int $backoff = 30;
 
     public function __construct(
         public int $recordingId
@@ -27,21 +31,55 @@ class ProcessRecordingWithAI implements ShouldQueue
         $recording = Recording::find($this->recordingId);
 
         if (!$recording) {
+            Log::warning('ProcessRecordingWithAI: Recording not found', ['id' => $this->recordingId]);
             return;
         }
 
+        // Idempotency check - skip if already processed or not in processable state
+        if ($recording->status === 'ready') {
+            Log::info('ProcessRecordingWithAI: Already processed, skipping', ['id' => $this->recordingId]);
+            return;
+        }
+
+        // Ensure we're in a processable state
+        if (!in_array($recording->status, ['processing', 'uploaded', 'failed'])) {
+            Log::warning('ProcessRecordingWithAI: Invalid status for processing', [
+                'id' => $this->recordingId,
+                'status' => $recording->status,
+            ]);
+            return;
+        }
+
+        // Mark as processing if not already
+        if ($recording->status !== 'processing') {
+            $recording->update(['status' => 'processing']);
+        }
+
         try {
-            $transcript = $this->transcribeAudio($recording->audio_path);
-            $recording->transcript = $transcript;
-            $recording->save();
+            // Check if we need to transcribe (audio recording) or already have text
+            $transcript = $recording->transcript;
+
+            if (!$transcript && $recording->audio_path) {
+                // Audio recording - needs transcription
+                $transcript = $this->transcribeAudio($recording->audio_path);
+                $recording->transcript = $transcript;
+                $recording->save();
+            }
+
+            if (!$transcript) {
+                throw new Exception('No transcript or audio available for processing');
+            }
 
             $structured = $this->generateStructuredOutput($transcript);
+
+            $inputType = $recording->audio_path ? 'audio' : 'text';
 
             $recording->ai_title = $structured['title'] ?? 'Untitled Recording';
             $recording->ai_summary = $structured['summary'] ?? '';
             $recording->ai_action_items = array_slice($structured['action_items'] ?? [], 0, 10);
             $recording->ai_meta = [
-                'transcription_model' => 'gpt-4o-transcribe',
+                'input_type' => $inputType,
+                'transcription_model' => $inputType === 'audio' ? 'gpt-4o-transcribe' : null,
                 'chat_model' => 'gpt-5.2',
                 'processed_at' => now()->toISOString(),
             ];
@@ -52,17 +90,34 @@ class ProcessRecordingWithAI implements ShouldQueue
                 'recording_id' => $recording->id,
                 'user_id' => $recording->user_id,
                 'metadata' => [
+                    'input_type' => $inputType,
                     'action_items_count' => count($recording->ai_action_items ?? []),
                 ],
             ]);
 
+            Log::info('ProcessRecordingWithAI: Completed successfully', [
+                'id' => $this->recordingId,
+                'input_type' => $inputType,
+            ]);
+
         } catch (Exception $e) {
+            Log::error('ProcessRecordingWithAI: Failed', [
+                'id' => $this->recordingId,
+                'error' => $e->getMessage(),
+            ]);
+
             $recording->status = 'failed';
             $recording->ai_meta = [
                 'error' => 'Processing failed. Please try again.',
+                'error_details' => app()->environment('local') ? $e->getMessage() : null,
                 'failed_at' => now()->toISOString(),
             ];
             $recording->save();
+
+            EventTracker::track('ai_failed', [
+                'recording_id' => $recording->id,
+                'user_id' => $recording->user_id,
+            ]);
         }
     }
 
@@ -144,7 +199,7 @@ class ProcessRecordingWithAI implements ShouldQueue
         $parsed = json_decode($content, true);
 
         if (!is_array($parsed)) {
-            throw new Exception('Invalid JSON response');
+            throw new Exception('Invalid JSON response from AI');
         }
 
         return [
