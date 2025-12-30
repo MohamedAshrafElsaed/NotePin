@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { useAuth } from '@/composables/useAuth';
+import { useCsrf } from '@/composables/useCsrf';
 import { useTrans } from '@/composables/useTrans';
 import { router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
 const { t } = useTrans();
 const { getAnonymousId } = useAuth();
+const { secureFetch } = useCsrf();
 
 const emit = defineEmits<{
     close: [];
@@ -117,19 +119,21 @@ const handleSubmit = async () => {
     }, 200);
 
     try {
-        const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '';
-        const response = await fetch('/notes/text', {
+        const response = await secureFetch('/notes/text', {
             method: 'POST',
             body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': csrfToken,
-                Accept: 'application/json',
-            },
-            credentials: 'same-origin',
         });
 
         clearInterval(progressInterval);
+
+        // Handle CSRF token mismatch (419) - reload page to get fresh token
+        if (response.status === 419) {
+            state.value = 'input';
+            errors.value = { text: [t('textInput.sessionExpired')] };
+            // Optionally reload after a delay to get fresh CSRF token
+            setTimeout(() => window.location.reload(), 2000);
+            return;
+        }
 
         const data = await response.json();
 
@@ -149,7 +153,7 @@ const handleSubmit = async () => {
         setTimeout(() => {
             router.visit(`/notes/${data.id}`);
         }, 300);
-    } catch (err) {
+    } catch {
         clearInterval(progressInterval);
         state.value = 'input';
         errors.value = { text: [t('textInput.error')] };
@@ -198,8 +202,8 @@ watch(text, (newVal) => {
                     <div class="mt-1.5 flex items-center justify-between">
                         <p v-if="textError" class="text-xs text-red-500">{{ textError }}</p>
                         <span v-else class="text-xs text-[#94A3B8]">{{
-                            t('textInput.charLimit', { min: MIN_LENGTH, max: MAX_LENGTH.toLocaleString() })
-                        }}</span>
+                                t('textInput.charLimit', { min: MIN_LENGTH, max: MAX_LENGTH.toLocaleString() })
+                            }}</span>
                         <span class="text-xs tabular-nums" :class="charCount > MAX_LENGTH ? 'text-red-500' : 'text-[#94A3B8]'">
                             {{ charCount.toLocaleString() }} / {{ MAX_LENGTH.toLocaleString() }}
                         </span>
@@ -234,7 +238,7 @@ watch(text, (newVal) => {
                         </div>
                         <div class="min-w-0 flex-1">
                             <p class="truncate text-sm font-medium text-[#0F172A]">{{ file.name }}</p>
-                            <p class="text-xs text-[#64748B]">{{ (file.size / 1024).toFixed(1) }} KB</p>
+                            <p class="text-xs text-[#94A3B8]">{{ (file.size / 1024).toFixed(1) }} KB</p>
                         </div>
                         <button
                             @click="removeFile"
@@ -250,10 +254,10 @@ watch(text, (newVal) => {
                     <button
                         v-else
                         @click="triggerFileInput"
-                        class="w-full rounded-xl border-2 border-dashed border-[#D1D5DB] px-4 py-3 text-[#64748B] transition-colors hover:border-[#4F46E5] hover:bg-[#F8FAFC] hover:text-[#4F46E5]"
+                        class="w-full rounded-xl border-2 border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-4 py-6 transition-colors hover:border-[#4F46E5] hover:bg-[#EEF2FF]"
                     >
-                        <div class="flex items-center justify-center gap-2">
-                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div class="flex flex-col items-center gap-2">
+                            <svg class="h-8 w-8 text-[#94A3B8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path
                                     stroke-linecap="round"
                                     stroke-linejoin="round"
@@ -292,7 +296,8 @@ watch(text, (newVal) => {
                             stroke="#4F46E5"
                             stroke-width="8"
                             stroke-linecap="round"
-                            :stroke-dasharray="`${uploadProgress * 2.64} 264`"
+                            :stroke-dasharray="264"
+                            :stroke-dashoffset="264 - (264 * uploadProgress) / 100"
                             class="transition-all duration-200"
                         />
                     </svg>
@@ -300,8 +305,8 @@ watch(text, (newVal) => {
                         <span class="text-sm font-semibold text-[#4F46E5]">{{ Math.round(uploadProgress) }}%</span>
                     </div>
                 </div>
-                <p class="font-medium text-[#334155]">{{ t('textInput.processing') }}</p>
-                <p class="mt-1 text-sm text-[#64748B]">{{ t('textInput.processingDesc') }}</p>
+                <p class="text-sm font-medium text-[#0F172A]">{{ t('textInput.processing') }}</p>
+                <p class="mt-1 text-xs text-[#64748B]">{{ t('textInput.processingHint') }}</p>
             </div>
         </div>
     </div>
@@ -311,35 +316,31 @@ watch(text, (newVal) => {
 .text-input-overlay {
     position: fixed;
     inset: 0;
-    z-index: 100;
-    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 50;
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    padding: 16px;
-    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-}
-
-.text-input-card {
-    width: 100%;
-    max-width: 480px;
-    max-height: calc(100vh - 100px);
-    max-height: calc(100dvh - 100px);
-    background-color: white;
-    border-radius: 24px;
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-.text-input-card > div:last-child {
-    overflow-y: auto;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 1rem;
 }
 
 @media (min-width: 640px) {
     .text-input-overlay {
         align-items: center;
     }
+}
+
+.text-input-card {
+    width: 100%;
+    max-width: 28rem;
+    max-height: 90vh;
+    overflow-y: auto;
+    background-color: white;
+    border-radius: 1rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+[dir='rtl'] .text-input-card {
+    text-align: right;
 }
 </style>
