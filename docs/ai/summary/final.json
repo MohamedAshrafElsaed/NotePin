@@ -1,0 +1,24 @@
+{
+    "version": "2.0",
+    "repository_id": 1,
+    "commit_sha": "767b699e26dd8b60bf240da3a4ad97e19232d260",
+    "completed_at": "2026-01-05T20:57:27+00:00",
+    "artifacts": [
+        "index:inventory.json",
+        "index:laravel_map.json",
+        "index:ui_layer.json",
+        "index:tooling.json",
+        "plan:indexing.json",
+        "plan:traces.json",
+        "docs:ai\/00_overview.md",
+        "docs:ai\/10_system_map.md",
+        "docs:ai\/20_modules.md",
+        "plan:repo_publish.json"
+    ],
+    "stats": {
+        "total_files": 181,
+        "is_laravel": true,
+        "controllers": 12,
+        "models": 5
+    }
+}
