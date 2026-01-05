@@ -1,0 +1,33 @@
+{
+    "version": "2.0",
+    "generated_at": "2026-01-05T20:57:27+00:00",
+    "route_contents_provided": true,
+    "pending_traces": false,
+    "pending_reason": null,
+    "routes_extracted_count": 23,
+    "trace_targets": [
+        "\/",
+        "\/login",
+        "\/locale\/{locale}",
+        "\/auth\/google",
+        "\/auth\/google\/callback",
+        "\/auth\/email",
+        "\/auth\/email\/callback",
+        "\/logout",
+        "\/recordings",
+        "\/recordings\/{recording}",
+        "\/recordings\/{recording}\/process",
+        "\/notes\/text",
+        "\/recordings\/{recording}\/share",
+        "\/notes\/{id}",
+        "\/notes\/{id}\/override",
+        "\/notes\/{id}\/action-state",
+        "\/notes\/{id}\/actions",
+        "\/notes\/{id}\/actions\/{actionId}",
+        "\/share\/{token}",
+        "\/api\/events",
+        "auth",
+        "\/dashboard",
+        "\/notes"
+    ]
+}

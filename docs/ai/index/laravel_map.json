@@ -1,0 +1,104 @@
+{
+    "framework": {
+        "is_laravel": true,
+        "laravel_version_guess": "^12.0",
+        "php_version": "^8.2",
+        "evidence": {
+            "artisan_exists": true,
+            "composer_json_exists": true,
+            "laravel_in_require": true
+        }
+    },
+    "paths": {
+        "controllers": [
+            "app\/Http\/Controllers\/Api\/EventController.php",
+            "app\/Http\/Controllers\/Auth\/EmailAuthController.php",
+            "app\/Http\/Controllers\/Auth\/GoogleAuthController.php",
+            "app\/Http\/Controllers\/Controller.php",
+            "app\/Http\/Controllers\/DashboardController.php",
+            "app\/Http\/Controllers\/LocaleController.php",
+            "app\/Http\/Controllers\/NoteActionController.php",
+            "app\/Http\/Controllers\/NotesController.php",
+            "app\/Http\/Controllers\/RecordingController.php",
+            "app\/Http\/Controllers\/RecordingProcessController.php",
+            "app\/Http\/Controllers\/ShareController.php",
+            "app\/Http\/Controllers\/TextNoteController.php"
+        ],
+        "models": [
+            "app\/Models\/Event.php",
+            "app\/Models\/NoteAction.php",
+            "app\/Models\/Recording.php",
+            "app\/Models\/Share.php",
+            "app\/Models\/User.php"
+        ],
+        "middleware": [
+            "app\/Http\/Middleware\/HandleInertiaRequests.php",
+            "app\/Http\/Middleware\/SetLocale.php"
+        ],
+        "services": [
+            "app\/Services\/AnonymousDataLinker.php",
+            "app\/Services\/AnonymousUserResolver.php",
+            "app\/Services\/EventTracker.php"
+        ],
+        "migrations": [
+            "database\/migrations\/0001_01_01_000000_create_users_table.php",
+            "database\/migrations\/0001_01_01_000001_create_cache_table.php",
+            "database\/migrations\/0001_01_01_000002_create_jobs_table.php",
+            "database\/migrations\/2025_12_27_133653_create_recordings_table.php",
+            "database\/migrations\/2025_12_27_134856_add_recordings_table.php",
+            "database\/migrations\/2025_12_27_142220_create_shares_table.php",
+            "database\/migrations\/2025_12_27_152958_create_events_table.php",
+            "database\/migrations\/2025_12_27_154645_update_users_table.php",
+            "database\/migrations\/2025_12_29_214909_create_note_actions_table.php"
+        ],
+        "routes": [
+            "routes\/console.php",
+            "routes\/web.php"
+        ],
+        "config": [
+            "config\/app.php",
+            "config\/auth.php",
+            "config\/cache.php",
+            "config\/database.php",
+            "config\/filesystems.php",
+            "config\/inertia.php",
+            "config\/logging.php",
+            "config\/mail.php",
+            "config\/openai.php",
+            "config\/queue.php",
+            "config\/services.php",
+            "config\/session.php"
+        ]
+    },
+    "counts": {
+        "controllers": 12,
+        "models": 5,
+        "middleware": 2,
+        "services": 3,
+        "migrations": 9,
+        "routes": 2,
+        "config": 12
+    },
+    "packages": {
+        "require": [
+            "php",
+            "guzzlehttp\/guzzle",
+            "inertiajs\/inertia-laravel",
+            "laravel\/framework",
+            "laravel\/socialite",
+            "laravel\/tinker",
+            "laravel\/wayfinder",
+            "openai-php\/laravel"
+        ],
+        "require_dev": [
+            "fakerphp\/faker",
+            "laravel\/boost",
+            "laravel\/pail",
+            "laravel\/pint",
+            "laravel\/sail",
+            "mockery\/mockery",
+            "nunomaduro\/collision",
+            "phpunit\/phpunit"
+        ]
+    }
+}
