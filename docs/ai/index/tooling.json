@@ -1,0 +1,29 @@
+{
+    "ci": {
+        "github_actions": true,
+        "gitlab_ci": false,
+        "circle_ci": false,
+        "any": true
+    },
+    "testing": {
+        "phpunit": true,
+        "pest": false,
+        "feature_tests": 1,
+        "unit_tests": 1
+    },
+    "linting": {
+        "pint": false,
+        "phpcs": false,
+        "eslint": true
+    },
+    "static_analysis": {
+        "phpstan": false,
+        "psalm": false,
+        "larastan": false
+    },
+    "documentation": {
+        "readme": false,
+        "changelog": false,
+        "contributing": false
+    }
+}

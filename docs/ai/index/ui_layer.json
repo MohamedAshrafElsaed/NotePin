@@ -1,0 +1,47 @@
+{
+    "detected_stacks": {
+        "blade": true,
+        "vue": true,
+        "react": false,
+        "inertia": true,
+        "livewire": false,
+        "tailwind": true,
+        "alpine": false
+    },
+    "evidence": {
+        "vue_in_package_json": true,
+        "react_in_package_json": false,
+        "inertia_in_composer": true,
+        "livewire_in_composer": false,
+        "tailwind_in_package_json": true
+    },
+    "paths": {
+        "blade_views": [
+            "resources\/views\/app.blade.php"
+        ],
+        "vue_components": [
+            "resources\/js\/components\/AppFooter.vue",
+            "resources\/js\/components\/AppHeader.vue",
+            "resources\/js\/components\/AuthModal.vue",
+            "resources\/js\/components\/LanguageSwitcher.vue",
+            "resources\/js\/components\/SharedFooter.vue",
+            "resources\/js\/components\/SharedHeader.vue",
+            "resources\/js\/components\/TextInputPanel.vue",
+            "resources\/js\/components\/ui\/Button.vue",
+            "resources\/js\/components\/ui\/Card.vue",
+            "resources\/js\/components\/ui\/Input.vue",
+            "resources\/js\/layouts\/AppLayout.vue",
+            "resources\/js\/pages\/Dashboard.vue",
+            "resources\/js\/pages\/Notes\/Index.vue",
+            "resources\/js\/pages\/Notes\/Show.vue",
+            "resources\/js\/pages\/Share\/Show.vue",
+            "resources\/js\/pages\/Welcome.vue"
+        ],
+        "react_components": []
+    },
+    "counts": {
+        "blade_views": 1,
+        "vue_components": 16,
+        "react_components": 0
+    }
+}
